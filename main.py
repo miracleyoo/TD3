@@ -3,6 +3,7 @@ import torch
 import gym
 import argparse
 import os
+import random
 
 import utils
 import TD3
@@ -35,21 +36,24 @@ def eval_policy(policy, env_name, seed, eval_episodes=10):
 if __name__ == "__main__":
 	
 	parser = argparse.ArgumentParser()
-	parser.add_argument("--policy", default="TD3")                  # Policy name (TD3, DDPG or OurDDPG)
-	parser.add_argument("--env", default="HalfCheetah-v2")          # OpenAI gym environment name
-	parser.add_argument("--seed", default=0, type=int)              # Sets Gym, PyTorch and Numpy seeds
+	parser.add_argument("--policy", default="TD3")				  # Policy name (TD3, DDPG or OurDDPG)
+	parser.add_argument("--env", default="HalfCheetah-v2")		  # OpenAI gym environment name
+	parser.add_argument("--seed", default=0, type=int)			  # Sets Gym, PyTorch and Numpy seeds
 	parser.add_argument("--start_timesteps", default=25e3, type=int)# Time steps initial random policy is used
-	parser.add_argument("--eval_freq", default=5e3, type=int)       # How often (time steps) we evaluate
+	parser.add_argument("--eval_freq", default=5e3, type=int)	   # How often (time steps) we evaluate
 	parser.add_argument("--max_timesteps", default=1e6, type=int)   # Max time steps to run environment
-	parser.add_argument("--expl_noise", default=0.1)                # Std of Gaussian exploration noise
-	parser.add_argument("--batch_size", default=256, type=int)      # Batch size for both actor and critic
-	parser.add_argument("--discount", default=0.99)                 # Discount factor
-	parser.add_argument("--tau", default=0.005)                     # Target network update rate
-	parser.add_argument("--policy_noise", default=0.2)              # Noise added to target policy during critic update
-	parser.add_argument("--noise_clip", default=0.5)                # Range to clip target policy noise
-	parser.add_argument("--policy_freq", default=2, type=int)       # Frequency of delayed policy updates
-	parser.add_argument("--save_model", action="store_true")        # Save model and optimizer parameters
-	parser.add_argument("--load_model", default="")                 # Model load file name, "" doesn't load, "default" uses file_name
+	parser.add_argument("--expl_noise", default=0.1)				# Std of Gaussian exploration noise
+	parser.add_argument("--batch_size", default=256, type=int)	  # Batch size for both actor and critic
+	parser.add_argument("--discount", default=0.99)				 # Discount factor
+	parser.add_argument("--tau", default=0.005)					 # Target network update rate
+	parser.add_argument("--policy_noise", default=0.2)			  # Noise added to target policy during critic update
+	parser.add_argument("--noise_clip", default=0.5)				# Range to clip target policy noise
+	parser.add_argument("--policy_freq", default=2, type=int)	   # Frequency of delayed policy updates
+	parser.add_argument("--save_model", action="store_true")		# Save model and optimizer parameters
+	parser.add_argument("--load_model", default="")				 # Model load file name, "" doesn't load, "default" uses file_name
+	parser.add_argument("--jit", action="store_true")			   # Whether use jetter or not
+	parser.add_argument("--g_ratio", default=4, type=int)	  # Maximum horizontal force g ratio
+
 	args = parser.parse_args()
 
 	file_name = f"{args.policy}_{args.env}_{args.seed}"
@@ -109,8 +113,13 @@ if __name__ == "__main__":
 	episode_timesteps = 0
 	episode_num = 0
 
-	for t in range(int(args.max_timesteps)):
-		
+	if args.jit:
+		counter = 0
+		lasttime = 2
+		disturb = random.randint(50,100)
+		print("==> Using Horizontal Jitter!")
+
+	for t in range(int(args.max_timesteps)):		
 		episode_timesteps += 1
 
 		# Select action randomly or according to policy
@@ -150,3 +159,16 @@ if __name__ == "__main__":
 			evaluations.append(eval_policy(policy, args.env, args.seed))
 			np.save(f"./results/{file_name}", evaluations)
 			if args.save_model: policy.save(f"./models/{file_name}")
+
+		if args.jit:
+			if counter>0 and counter%disturb == 0:
+				hori_force = (((args.g_ratio-1)*random.random()+1)*0.981)*(2*(random.random()>0.5)-1)
+				env.model.opt.gravity[0] = hori_force
+			if counter>lasttime and counter%disturb == lasttime:
+				env.model.opt.gravity[0] = 0
+				disturb = random.randint(50,100)
+				counter=0
+			counter+=1
+
+		if t>=25000:
+			env.render()
