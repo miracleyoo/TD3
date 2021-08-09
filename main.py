@@ -54,8 +54,8 @@ if __name__ == "__main__":
 	parser.add_argument("--jit", action="store_true")			  # Whether use jetter or not
 	parser.add_argument("--fluid", default="none", choices=('none', 'air', 'water'))				  # Policy name (TD3, DDPG or OurDDPG)
 	parser.add_argument("--force_type", default="wind", choices=('none', 'gravity', 'wind'))				  # Policy name (TD3, DDPG or OurDDPG)
-	parser.add_argument("--g_ratio", default=4, type=int)	      # Maximum horizontal force g ratio
-	parser.add_argument("--speed_ratio", default=1, type=int)	  # Maximum horizontal force g ratio
+	parser.add_argument("--ratio", default=4, type=int)	      # Maximum horizontal force g/wind ratio
+	# parser.add_argument("--speed_ratio", default=1, type=int)	  # Maximum horizontal force g ratio
 	
 
 	args = parser.parse_args()
@@ -175,7 +175,7 @@ if __name__ == "__main__":
 		if args.jit:
 			if args.force_type == 'gravity':
 				if counter>0 and counter%disturb == 0:
-					hori_force = (((args.g_ratio-1)*random.random()+1)*9.81)*(2*(random.random()>0.5)-1)
+					hori_force = (((args.ratio-1)*random.random()+1)*9.81)*(2*(random.random()>0.5)-1)
 					env.model.opt.gravity[0] = hori_force
 				if counter>lasttime and counter%disturb == lasttime:
 					env.model.opt.gravity[0] = 0
@@ -183,7 +183,7 @@ if __name__ == "__main__":
 					counter=0
 			elif args.force_type == 'wind':
 				if counter>0 and counter%disturb == 0:
-					hori_wind = ((args.speed_ratio-1)*random.random()+1)*(2*(random.random()>0.5)-1)
+					hori_wind = ((args.ratio-1)*random.random()+1)*(2*(random.random()>0.5)-1)
 					env.model.opt.wind[0] = hori_wind
 				if counter>lasttime and counter%disturb == lasttime:
 					env.model.opt.wind[0] = 0
@@ -191,5 +191,5 @@ if __name__ == "__main__":
 					counter=0				
 			counter+=1
 
-		if t>=25000:
+		if t>=28000:
 			env.render()
