@@ -55,7 +55,7 @@ if __name__ == "__main__":
 	parser.add_argument("--fluid", default="none", choices=('none', 'air', 'water'))				  # Policy name (TD3, DDPG or OurDDPG)
 	parser.add_argument("--force_type", default="wind", choices=('none', 'gravity', 'wind'))				  # Policy name (TD3, DDPG or OurDDPG)
 	parser.add_argument("--g_ratio", default=4, type=int)	      # Maximum horizontal force g ratio
-	parser.add_argument("--speed_ratio", default=4, type=int)	  # Maximum horizontal force g ratio
+	parser.add_argument("--speed_ratio", default=1, type=int)	  # Maximum horizontal force g ratio
 	
 
 	args = parser.parse_args()
@@ -184,7 +184,7 @@ if __name__ == "__main__":
 			elif args.force_type == 'wind':
 				if counter>0 and counter%disturb == 0:
 					hori_wind = ((args.speed_ratio-1)*random.random()+1)*(2*(random.random()>0.5)-1)
-					env.model.opt.wind[0] = hori_force
+					env.model.opt.wind[0] = hori_wind
 				if counter>lasttime and counter%disturb == lasttime:
 					env.model.opt.wind[0] = 0
 					disturb = random.randint(50,100)
