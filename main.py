@@ -40,19 +40,23 @@ if __name__ == "__main__":
 	parser.add_argument("--env", default="HalfCheetah-v2")		  # OpenAI gym environment name
 	parser.add_argument("--seed", default=0, type=int)			  # Sets Gym, PyTorch and Numpy seeds
 	parser.add_argument("--start_timesteps", default=25e3, type=int)# Time steps initial random policy is used
-	parser.add_argument("--eval_freq", default=5e3, type=int)	   # How often (time steps) we evaluate
-	parser.add_argument("--max_timesteps", default=1e6, type=int)   # Max time steps to run environment
-	parser.add_argument("--expl_noise", default=0.1)				# Std of Gaussian exploration noise
+	parser.add_argument("--eval_freq", default=5e3, type=int)	  # How often (time steps) we evaluate
+	parser.add_argument("--max_timesteps", default=1e6, type=int) # Max time steps to run environment
+	parser.add_argument("--expl_noise", default=0.1)			  # Std of Gaussian exploration noise
 	parser.add_argument("--batch_size", default=256, type=int)	  # Batch size for both actor and critic
-	parser.add_argument("--discount", default=0.99)				 # Discount factor
-	parser.add_argument("--tau", default=0.005)					 # Target network update rate
+	parser.add_argument("--discount", default=0.99)				  # Discount factor
+	parser.add_argument("--tau", default=0.005)					  # Target network update rate
 	parser.add_argument("--policy_noise", default=0.2)			  # Noise added to target policy during critic update
-	parser.add_argument("--noise_clip", default=0.5)				# Range to clip target policy noise
-	parser.add_argument("--policy_freq", default=2, type=int)	   # Frequency of delayed policy updates
-	parser.add_argument("--save_model", action="store_true")		# Save model and optimizer parameters
-	parser.add_argument("--load_model", default="")				 # Model load file name, "" doesn't load, "default" uses file_name
-	parser.add_argument("--jit", action="store_true")			   # Whether use jetter or not
-	parser.add_argument("--g_ratio", default=4, type=int)	  # Maximum horizontal force g ratio
+	parser.add_argument("--noise_clip", default=0.5)			  # Range to clip target policy noise
+	parser.add_argument("--policy_freq", default=2, type=int)	  # Frequency of delayed policy updates
+	parser.add_argument("--save_model", action="store_true")	  # Save model and optimizer parameters
+	parser.add_argument("--load_model", default="")				  # Model load file name, "" doesn't load, "default" uses file_name
+	parser.add_argument("--jit", action="store_true")			  # Whether use jetter or not
+	parser.add_argument("--fluid", default="none", choices=('none', 'air', 'water'))				  # Policy name (TD3, DDPG or OurDDPG)
+	parser.add_argument("--force_type", default="wind", choices=('none', 'gravity', 'wind'))				  # Policy name (TD3, DDPG or OurDDPG)
+	parser.add_argument("--g_ratio", default=4, type=int)	      # Maximum horizontal force g ratio
+	parser.add_argument("--speed_ratio", default=4, type=int)	  # Maximum horizontal force g ratio
+	
 
 	args = parser.parse_args()
 
@@ -74,6 +78,14 @@ if __name__ == "__main__":
 	env.action_space.seed(args.seed)
 	torch.manual_seed(args.seed)
 	np.random.seed(args.seed)
+
+	# Set Fluid Environment
+	if args.fluid == 'air':
+		env.model.opt.density = 1.225
+		env.model.opt.viscosity = 0.0000185
+	elif args.fluid == 'water':
+		env.model.opt.density = 997
+		env.model.opt.viscosity = 0.00089
 	
 	state_dim = env.observation_space.shape[0]
 	action_dim = env.action_space.shape[0] 
@@ -161,13 +173,22 @@ if __name__ == "__main__":
 			if args.save_model: policy.save(f"./models/{file_name}")
 
 		if args.jit:
-			if counter>0 and counter%disturb == 0:
-				hori_force = (((args.g_ratio-1)*random.random()+1)*0.981)*(2*(random.random()>0.5)-1)
-				env.model.opt.gravity[0] = hori_force
-			if counter>lasttime and counter%disturb == lasttime:
-				env.model.opt.gravity[0] = 0
-				disturb = random.randint(50,100)
-				counter=0
+			if args.force_type == 'gravity':
+				if counter>0 and counter%disturb == 0:
+					hori_force = (((args.g_ratio-1)*random.random()+1)*9.81)*(2*(random.random()>0.5)-1)
+					env.model.opt.gravity[0] = hori_force
+				if counter>lasttime and counter%disturb == lasttime:
+					env.model.opt.gravity[0] = 0
+					disturb = random.randint(50,100)
+					counter=0
+			elif args.force_type == 'wind':
+				if counter>0 and counter%disturb == 0:
+					hori_wind = ((args.speed_ratio-1)*random.random()+1)*(2*(random.random()>0.5)-1)
+					env.model.opt.wind[0] = hori_force
+				if counter>lasttime and counter%disturb == lasttime:
+					env.model.opt.wind[0] = 0
+					disturb = random.randint(50,100)
+					counter=0				
 			counter+=1
 
 		if t>=25000:
