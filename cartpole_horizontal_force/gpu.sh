@@ -10,7 +10,8 @@
 
 seed=${1:-0}
 g_ratio=${2:-4}
-echo $seed $g_ratio
+env_timestep=${3:-0.02}
+echo $seed $g_ratio $env_timestep
 
-python main.py --seed $seed --g_ratio $g_ratio --jit
+python main.py --seed $seed --g_ratio $g_ratio --jit --env_timestep $env_timestep
 exit
