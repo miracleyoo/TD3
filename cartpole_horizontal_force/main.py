@@ -58,22 +58,22 @@ def eval_policy(policy, env_name, eval_episodes=10, time_change_factor=1, jit=Fa
 
 
 def train(policy='TD3', env_name='InvertedPendulum-v2', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timesteps=1e5,
-          expl_noise=0.1, batch_size=256, discount=0.99, tau=0.005, policy_freq=2, policy_noise=2, save_model=False,
-          load_model="", jit=False, g_ratio=1, env_timestep=0.02):
+          expl_noise=0.1, batch_size=256, discount=0.99, tau=0.005, policy_freq=2, policy_noise=2,noise_clip=0.5,
+          save_model=False, load_model="", jit=False, g_ratio=1, env_timestep=0.02):
     arguments = [policy, env_name, seed, jit, g_ratio, env_timestep]
     file_name = '_'.join([str(x) for x in arguments])
     print("---------------------------------------")
-    print(f"Policy: {policy}, Env: {env}, Seed: {seed}")
+    print(f"Policy: {policy}, Env: {env_name}, Seed: {seed}")
     print("---------------------------------------")
 
     if not os.path.exists("./results"):
         os.makedirs("./results")
 
-    if args.save_model and not os.path.exists("./models"):
+    if save_model and not os.path.exists("./models"):
         os.makedirs("./models")
 
     env = gym.make(env_name)
-    time_change_factor = 0.02 / args.env_timestep
+    time_change_factor = 0.02 / env_timestep
 
     print('time change factor', time_change_factor)
     # Set seeds
@@ -103,9 +103,9 @@ def train(policy='TD3', env_name='InvertedPendulum-v2', seed=0, start_timesteps=
     # Initialize policy
     if policy == "TD3":
         # Target policy smoothing is scaled wrt the action scale
-        kwargs["policy_noise"] = args.policy_noise * max_action
-        kwargs["noise_clip"] = args.noise_clip * max_action
-        kwargs["policy_freq"] = args.policy_freq
+        kwargs["policy_noise"] = policy_noise * max_action
+        kwargs["noise_clip"] = noise_clip * max_action
+        kwargs["policy_freq"] = policy_freq
         policy = TD3.TD3(**kwargs)
     elif policy == "OurDDPG":
         policy = OurDDPG.DDPG(**kwargs)
@@ -119,7 +119,8 @@ def train(policy='TD3', env_name='InvertedPendulum-v2', seed=0, start_timesteps=
     replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
 
     # Evaluate untrained policy
-    evaluations = [eval_policy(policy, env, seed)]
+    evaluations = [eval_policy(policy, env_name, eval_episodes=10, time_change_factor=time_change_factor, jit=jit,
+                               env_timestep=env_timestep, g_ratio=g_ratio)]
 
     state, done = env.reset(), False
     episode_reward = 0
@@ -209,7 +210,7 @@ if __name__ == "__main__":
     parser.add_argument("--save_model", action="store_true")  # Save model and optimizer parameters
     parser.add_argument("--load_model", default="")  # Model load file name, "" doesn't load, "default" uses file_name
     parser.add_argument("--jit", action="store_true")  # Whether use jetter or not
-    parser.add_argument("--g_ratio", default=1, type=int)  # Maximum horizontal force g ratio
+    parser.add_argument("--g_ratio", default=0, type=int)  # Maximum horizontal force g ratio
     parser.add_argument("--env_timestep", default=0.02, type=float, help="environment time between each frame")
 
     args = parser.parse_args()
