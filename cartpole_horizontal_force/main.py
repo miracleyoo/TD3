@@ -6,6 +6,7 @@ import os
 import random
 
 import sys
+
 sys.path.append('../')
 import utils
 import TD3
@@ -56,10 +57,9 @@ def eval_policy(policy, env_name, eval_episodes=10, time_change_factor=1, jit=Fa
     return avg_reward
 
 
-def train(policy = 'TD3', env_name='InvertedPendulum-v2', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timesteps=1e5,
-          expl_noise=0.1, batch_size=256, discount=0.99, tau=0.005, policy_freq=2, save_model=False, load_model="",
-          jit=False, g_ratio=1, env_timestep=0.02):
-
+def train(policy='TD3', env_name='InvertedPendulum-v2', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timesteps=1e5,
+          expl_noise=0.1, batch_size=256, discount=0.99, tau=0.005, policy_freq=2, policy_noise=2, save_model=False,
+          load_model="", jit=False, g_ratio=1, env_timestep=0.02):
     arguments = [policy, env_name, seed, jit, g_ratio, env_timestep]
     file_name = '_'.join([str(x) for x in arguments])
     print("---------------------------------------")
@@ -212,7 +212,6 @@ if __name__ == "__main__":
     parser.add_argument("--g_ratio", default=1, type=int)  # Maximum horizontal force g ratio
     parser.add_argument("--env_timestep", default=0.02, type=float, help="environment time between each frame")
 
-
     args = parser.parse_args()
     args = vars(args)
     print()
@@ -223,6 +222,3 @@ if __name__ == "__main__":
     print()
 
     train(**args)
-
-
-
