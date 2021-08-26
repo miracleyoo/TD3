@@ -210,7 +210,7 @@ if __name__ == "__main__":
     parser.add_argument("--save_model", action="store_true")  # Save model and optimizer parameters
     parser.add_argument("--load_model", default="")  # Model load file name, "" doesn't load, "default" uses file_name
     parser.add_argument("--jit", action="store_true")  # Whether use jetter or not
-    parser.add_argument("--g_ratio", default=0, type=int)  # Maximum horizontal force g ratio
+    parser.add_argument("--g_ratio", default=0, type=float, help='Maximum horizontal force g ratio')
     parser.add_argument("--env_timestep", default=0.02, type=float, help="environment time between each frame")
 
     args = parser.parse_args()
