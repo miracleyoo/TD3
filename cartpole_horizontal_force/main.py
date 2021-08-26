@@ -21,11 +21,11 @@ def eval_policy(policy, env_name, eval_episodes=10, time_change_factor=1, jit=Fa
     eval_env.seed(100)
     eval_env.unwrapped.spec.max_episode_steps = 1000 * time_change_factor
     eval_env.model.opt.timestep = env_timestep
+    lasttime = 2 * time_change_factor
 
     avg_reward = 0.
     if jit:
         counter = 0
-        lasttime = 2
         disturb = random.randint(50, 100)
         print("==> Using Horizontal Jitter!")
 
@@ -87,6 +87,7 @@ def train(policy='TD3', env_name='InvertedPendulum-v2', seed=0, start_timesteps=
     eval_freq = eval_freq * time_change_factor
     start_timesteps = start_timesteps * time_change_factor
     env.model.opt.timestep = env_timestep
+    lasttime = time_change_factor * 2
 
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
@@ -129,7 +130,6 @@ def train(policy='TD3', env_name='InvertedPendulum-v2', seed=0, start_timesteps=
 
     if jit:
         counter = 0
-        lasttime = 2
         disturb = random.randint(50, 100)
         print("==> Using Horizontal Jitter!")
 
