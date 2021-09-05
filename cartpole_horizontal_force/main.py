@@ -19,7 +19,7 @@ import DDPG
 def eval_policy(policy, env_name, eval_episodes=10, time_change_factor=1, jit=False, env_timestep=0.02, g_ratio=1):
     eval_env = gym.make(env_name)
     eval_env.seed(100)
-    eval_env.unwrapped.spec.max_episode_steps = 1000 * time_change_factor
+    eval_env._max_episode_steps = 1000 * time_change_factor
     eval_env.model.opt.timestep = env_timestep
     lasttime = 2 * time_change_factor
 
@@ -82,12 +82,13 @@ def train(policy='TD3', env_name='InvertedPendulum-v2', seed=0, start_timesteps=
     torch.manual_seed(seed)
     np.random.seed(seed)
 
-    env.unwrapped.spec.max_episode_steps = 1000 * time_change_factor
+    env._max_episode_steps = 1000 * time_change_factor
     max_timesteps = max_timesteps * time_change_factor
     eval_freq = eval_freq * time_change_factor
     start_timesteps = start_timesteps * time_change_factor
     env.model.opt.timestep = env_timestep
     lasttime = time_change_factor * 2
+
 
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
@@ -186,6 +187,7 @@ def train(policy='TD3', env_name='InvertedPendulum-v2', seed=0, start_timesteps=
                 disturb = random.randint(50, 100)
                 counter = 0
             counter += 1
+
 
         # if t >= 25000:
         #     env.render()
