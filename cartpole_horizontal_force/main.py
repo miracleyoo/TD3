@@ -72,7 +72,7 @@ def eval_policy(policy, env_name, eval_episodes=10, time_change_factor=1, jit_du
 
             if jit_duration:
                 if counter % disturb == 0:
-                    eval_env.model.opt.gravity[0] = hori_force
+                    eval_env.model.opt.gravity[0] = force
                     jittering = True
                     jittered_frames = 0
                 counter += 1
