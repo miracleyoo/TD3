@@ -69,7 +69,7 @@ def eval_policy(policy, env_name, eval_episodes=10, time_change_factor=1, jit_du
                     eval_env.model.opt.gravity[0] = 0
                     counter = 1
             avg_reward += reward
-
+            state = next_state
             if jit_duration:
                 if counter % disturb == 0:
                     eval_env.model.opt.gravity[0] = force
