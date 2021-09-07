@@ -116,7 +116,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         os.makedirs("./models")
 
     if response_rate % default_timestep == 0:
-        frame_skip = response_rate % default_timestep
+        frame_skip = response_rate / default_timestep
         timestep = default_timestep
     elif jit_duration:
         timestep = jit_duration
