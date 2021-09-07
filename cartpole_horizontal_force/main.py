@@ -43,8 +43,8 @@ def eval_policy(policy, env_name, eval_episodes=10, time_change_factor=1, jit_du
         counter = 1
         disturb = random.randint(50, 100) * time_change_factor
         print("==> Using Horizontal Jitter!")
-        jittering = False
 
+    jittering = False
     t = 0
     for _ in range(eval_episodes):
         state, done = eval_env.reset(), False
