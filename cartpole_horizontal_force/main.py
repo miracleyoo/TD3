@@ -58,7 +58,7 @@ def eval_policy(policy, env_name, eval_episodes=10, time_change_factor=1, jit_du
                                                               frame_skip - (jit_frames - jittered_frames))
                 jittering = False
                 disturb = random.randint(50, 100) * time_change_factor
-                env.model.opt.gravity[0] = 0
+                eval_env.model.opt.gravity[0] = 0
                 counter = 1
             else:
                 next_state, reward, done, _ = eval_env.step(action)
