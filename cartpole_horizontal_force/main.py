@@ -20,9 +20,9 @@ default_frame_skip = 2
 def jitter_step(self, a, force, frames1, frames2):
     self.model.opt.gravity[0] = force
     reward = 1.0
-    self.do_simulation(a, frames1)
+    self.do_simulation(a, int(frames1))
     self.model.opt.gravity[0] = force
-    self.do_simulation(a, frames2)
+    self.do_simulation(a, int(frames2))
     ob = self._get_obs()
     notdone = np.isfinite(ob).all() and (np.abs(ob[1]) <= 0.2)
     done = not notdone
