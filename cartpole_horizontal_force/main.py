@@ -191,8 +191,8 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         counter = 1
         disturb = random.randint(50, 100) * time_change_factor
         print("==> Using Horizontal Jitter!")
-        jittering = False
 
+    jittering = False
     for t in range(int(max_timesteps)):
         episode_timesteps += 1
 
