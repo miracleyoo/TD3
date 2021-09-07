@@ -124,7 +124,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     else:
         timestep = response_rate
         frame_skip = 1
-
+    jit_frames = 0
     if jit_duration:
         if jit_duration % timestep == 0:
             jit_frames = jit_duration / timestep
