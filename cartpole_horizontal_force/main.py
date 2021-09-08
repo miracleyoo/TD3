@@ -103,7 +103,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
           save_model=False, load_model="", jit_duration=0.02, g_ratio=1, response_rate=0.04):
     hori_force = g_ratio * 9.81
     env_name = 'InvertedPendulum-v2'
-    arguments = [policy, env_name, seed, jit_duration, g_ratio]
+    arguments = [policy, env_name, seed, jit_duration, g_ratio, response_rate]
     file_name = '_'.join([str(x) for x in arguments])
     print("---------------------------------------")
     print(f"Policy: {policy}, Env: {env_name}, Seed: {seed}")
