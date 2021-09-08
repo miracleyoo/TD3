@@ -10,8 +10,8 @@
 
 seed=${1:-0}
 g_ratio=${2:-4}
-env_timestep=${3:-0.02}
-echo $seed $g_ratio $env_timestep
+response_rate=${3:-0.02}
+echo $seed $g_ratio $response_rate
 
-python main.py --seed $seed --g_ratio $g_ratio --jit --env_timestep $env_timestep
+python main.py --seed $seed --g_ratio $g_ratio --jit_duration 0.02 --response_rate $response_rate
 exit
