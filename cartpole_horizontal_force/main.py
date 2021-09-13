@@ -54,7 +54,7 @@ def eval_policy(policy, env_name, eval_episodes=10, time_change_factor=1, jit_du
             if not jittering:
                 next_state, reward, done, _ = eval_env.step(action)
             elif jit_frames - jittered_frames < frame_skip:
-                next_state, reward, done, _ = eval_env.jitter_step(action, force, jit_frames - jittered_frames,
+                next_state, reward, done, _ = eval_env.jitter_step(action, jitter_force, jit_frames - jittered_frames,
                                                               frame_skip - (jit_frames - jittered_frames))
                 jittering = False
                 disturb = random.randint(50, 100) * time_change_factor
@@ -72,7 +72,8 @@ def eval_policy(policy, env_name, eval_episodes=10, time_change_factor=1, jit_du
             state = next_state
             if jit_duration:
                 if counter % disturb == 0:
-                    eval_env.model.opt.gravity[0] = force
+                    jitter_force = np.random.random() * force
+                    eval_env.model.opt.gravity[0] = jitter_force
                     jittering = True
                     jittered_frames = 0
                 counter += 1
@@ -209,7 +210,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         if not jittering:
             next_state, reward, done, _ = env.step(action)
         elif jit_frames - jittered_frames < frame_skip:
-            next_state, reward, done, _ = env.jitter_step(action, hori_force, jit_frames - jittered_frames, frame_skip - (jit_frames - jittered_frames))
+            next_state, reward, done, _ = env.jitter_step(action, jitter_force, jit_frames - jittered_frames, frame_skip - (jit_frames - jittered_frames))
             jittering = False
             disturb = random.randint(50, 100) * time_change_factor
             env.model.opt.gravity[0] = 0
@@ -256,7 +257,8 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
         if jit_duration:
             if counter % disturb == 0:
-                env.model.opt.gravity[0] = hori_force
+                jitter_force = np.random.random() * hori_force
+                env.model.opt.gravity[0] = jitter_force
                 jittering = True
                 jittered_frames = 0
             counter += 1
