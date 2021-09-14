@@ -3,6 +3,7 @@ import numpy as np
 
 __all__=["make_env", "jitter_step"]
 
+# Make environment using its name
 def make_env(env_name, seed, time_change_factor, env_timestep, frameskip):
     env = gym.make(env_name)
     env.seed(seed)
@@ -13,6 +14,8 @@ def make_env(env_name, seed, time_change_factor, env_timestep, frameskip):
     env.jitter_step = jitter_step
     return env
 
+# The alternative step function when some frames of a step are under the
+# jitter force while others are not
 def jitter_step(self, a, force, frames1, frames2):
     self.model.opt.gravity[0] = force
     reward = 1.0

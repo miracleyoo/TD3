@@ -8,6 +8,8 @@ sys.path.append('../')
 __all__ = ["eval_policy_std", "eval_policy_ori"]
 
 
+# Standard evaluation function. A fixed evaluation routine will be executed to
+# check the ability of the learned policy. Average step angle will be returned.
 def eval_policy_std(policy, env_name, eval_episodes=10, time_change_factor=1, jit_duration=0, env_timestep=0.02, force=1,
                     frame_skip=1, jit_frames=0):
     print("\n==> Start standard evaluation...")

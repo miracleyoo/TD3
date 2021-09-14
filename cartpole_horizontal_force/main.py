@@ -17,6 +17,7 @@ from evals import *
 default_timestep = 0.02
 default_frame_skip = 2
 
+# Main function of the policy. Model is trained and evaluated inside.
 def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timesteps=1e5,
           expl_noise=0.1, batch_size=256, discount=0.99, tau=0.005, policy_freq=2, policy_noise=2, noise_clip=0.5,
           save_model=False, load_model="", jit_duration=0.02, g_ratio=1, response_rate=0.04, std_eval=False):
@@ -195,42 +196,24 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    # Policy name (TD3, DDPG or OurDDPG)
-    parser.add_argument("--policy", default="TD3")
-    # Sets Gym, PyTorch and Numpy seeds
-    parser.add_argument("--seed", default=0, type=int)
-    # Time steps initial random policy is used
-    parser.add_argument("--start_timesteps", default=25e3, type=int)
-    # How often (time steps) we evaluate
-    parser.add_argument("--eval_freq", default=5e3, type=int)
-    # Max time steps to run environment
-    parser.add_argument("--max_timesteps", default=1e5, type=int)
-    # Std of Gaussian exploration noise
-    parser.add_argument("--expl_noise", default=0.1)
-    # Batch size for both actor and critic
-    parser.add_argument("--batch_size", default=256, type=int)
-    # Discount factor
-    parser.add_argument("--discount", default=0.99)  
-    # Target network update rate
-    parser.add_argument("--tau", default=0.005)  
-    # Noise added to target policy during critic update
-    parser.add_argument("--policy_noise", default=0.2)
-    # Range to clip target policy noise
-    parser.add_argument("--noise_clip", default=0.5)
-    # Frequency of delayed policy updates
-    parser.add_argument("--policy_freq", default=2, type=int)
-    # Save model and optimizer parameters
-    parser.add_argument("--save_model", action="store_true")
-    # Model load file name, "" doesn't load, "default" uses file_name
-    parser.add_argument("--load_model", default="")
-    parser.add_argument("--jit_duration", default=0.04, type=float,
-                        help="Duration in seconds for the horizontal force")
-    parser.add_argument("--g_ratio", default=0, type=float,
-                        help='Maximum horizontal force g ratio')
-    parser.add_argument("--response_rate", default=0.04,
-                        type=float, help="Response time of the agent in seconds")
-    # Use standard evaluation or original evaluation policy
-    parser.add_argument("--std_eval", action="store_true")
+    parser.add_argument("--policy", default="TD3", help="Policy name (TD3, DDPG or OurDDPG)")
+    parser.add_argument("--seed", default=0, type=int, help="Sets Gym, PyTorch and Numpy seeds")
+    parser.add_argument("--start_timesteps", default=25e3, type=int, help="Time steps initial random policy is used")
+    parser.add_argument("--eval_freq", default=5e3, type=int, help="How often (time steps) we evaluate")
+    parser.add_argument("--max_timesteps", default=1e5, type=int, help="Max time steps to run environment")
+    parser.add_argument("--expl_noise", default=0.1, help="Std of Gaussian exploration noise")
+    parser.add_argument("--batch_size", default=256, type=int, help="Batch size for both actor and critic")
+    parser.add_argument("--discount", default=0.99, help="Discount factor")
+    parser.add_argument("--tau", default=0.005, help="Target network update rate")
+    parser.add_argument("--policy_noise", default=0.2, help="Noise added to target policy during critic update")
+    parser.add_argument("--noise_clip", default=0.5, help="Range to clip target policy noise")
+    parser.add_argument("--policy_freq", default=2, type=int, help="Frequency of delayed policy updates")
+    parser.add_argument("--save_model", action="store_true", help="Save model and optimizer parameters")
+    parser.add_argument("--load_model", default="", help="Model load file name, `` doesn't load, `default` uses file_name")
+    parser.add_argument("--jit_duration", default=0.04, type=float, help="Duration in seconds for the horizontal force")
+    parser.add_argument("--g_ratio", default=0, type=float, help='Maximum horizontal force g ratio')
+    parser.add_argument("--response_rate", default=0.04, type=float, help="Response time of the agent in seconds")
+    parser.add_argument("--std_eval", action="store_true", help="Use standard evaluation or original evaluation policy")
 
     args = parser.parse_args()
     args = vars(args)
