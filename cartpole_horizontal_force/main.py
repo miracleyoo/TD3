@@ -7,106 +7,22 @@ import TD3
 import utils
 import numpy as np
 import torch
-import gym
-from gym.envs.mujoco import inverted_pendulum
 import argparse
 import os
 import random
 
-
+from common import make_env
+from evals import *
 
 default_timestep = 0.02
 default_frame_skip = 2
 
-
-def jitter_step(self, a, force, frames1, frames2):
-    self.model.opt.gravity[0] = force
-    reward = 1.0
-    self.do_simulation(a, int(frames1))
-    self.model.opt.gravity[0] = force # 0 here? frames1 are with force while frames2 are supposed not.
-    self.do_simulation(a, int(frames2))
-    ob = self._get_obs()
-    notdone = np.isfinite(ob).all() and (np.abs(ob[1]) <= 0.2)
-    done = not notdone
-    return ob, reward, done, {}
-
-
-inverted_pendulum.InvertedPendulumEnv.jitter_step = jitter_step
-
-
-# Runs policy for X episodes and returns average reward
-# A fixed seed is used for the eval environment
-def eval_policy(policy, env_name, eval_episodes=10, time_change_factor=1, jit_duration=0, env_timestep=0.02, force=1,
-                frame_skip=1, jit_frames=0):
-    eval_env = make_env(env_name, 100, time_change_factor,
-                        env_timestep, frame_skip)
-
-    avg_reward = 0.
-    if jit_duration:
-        counter = 1
-        disturb = random.randint(50, 100) * time_change_factor
-        print("==> Using Horizontal Jitter!")
-
-    jittering = False
-    t = 0
-    for _ in range(eval_episodes):
-        state, done = eval_env.reset(), False
-        while not done:
-            action = policy.select_action(np.array(state))
-            # Perform action
-            if not jittering:
-                next_state, reward, done, _ = eval_env.step(action)
-            elif jit_frames - jittered_frames < frame_skip:
-                next_state, reward, done, _ = eval_env.jitter_step(action, jitter_force, jit_frames - jittered_frames,
-                                                                   frame_skip - (jit_frames - jittered_frames))
-                jittering = False
-                disturb = random.randint(50, 100) * time_change_factor
-                eval_env.model.opt.gravity[0] = 0
-                counter = 1
-            else:
-                next_state, reward, done, _ = eval_env.step(action)
-                jittered_frames += frame_skip
-                if jittered_frames == jit_frames:
-                    jittering = False
-                    disturb = random.randint(50, 100) * time_change_factor
-                    eval_env.model.opt.gravity[0] = 0
-                    counter = 1
-            avg_reward += reward
-            state = next_state
-            if jit_duration:
-                if counter % disturb == 0:
-                    jitter_force = np.random.random() * force * (2*(random.random()>0.5)-1)
-                    eval_env.model.opt.gravity[0] = jitter_force
-                    jittering = True
-                    jittered_frames = 0
-                counter += 1
-
-            t += 1
-
-    avg_reward /= eval_episodes
-
-    print("---------------------------------------")
-    print(f"Evaluation over {eval_episodes} episodes: {avg_reward:.3f}")
-    print("---------------------------------------")
-    return avg_reward
-
-
-def make_env(env_name, seed, time_change_factor, env_timestep, frameskip):
-    env = gym.make(env_name)
-    env.seed(seed)
-    env.action_space.seed(seed)
-    env._max_episode_steps = 1000 * time_change_factor
-    env.model.opt.timestep = env_timestep
-    env.frameskip = frameskip
-
-    return env
-
-
 def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timesteps=1e5,
           expl_noise=0.1, batch_size=256, discount=0.99, tau=0.005, policy_freq=2, policy_noise=2, noise_clip=0.5,
-          save_model=False, load_model="", jit_duration=0.02, g_ratio=1, response_rate=0.04):
+          save_model=False, load_model="", jit_duration=0.02, g_ratio=1, response_rate=0.04, std_eval=False):
     hori_force = g_ratio * 9.81
     env_name = 'InvertedPendulum-v2'
+    eval_policy = eval_policy_std if std_eval else eval_policy_ori
     arguments = [policy, env_name, seed, jit_duration, g_ratio, response_rate]
     file_name = '_'.join([str(x) for x in arguments])
     print("---------------------------------------")
@@ -215,6 +131,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         # Perform action
         if not jittering:  # Not during the frames when jitter force keeps existing
             next_state, reward, done, _ = env.step(action)
+            # print(next_state)
         elif jit_frames - jittered_frames < frame_skip:  # Jitter force will dispear from now!
             next_state, reward, done, _ = env.jitter_step(
                 action, jitter_force, jit_frames - jittered_frames, frame_skip - (jit_frames - jittered_frames))
@@ -277,7 +194,6 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser()
     # Policy name (TD3, DDPG or OurDDPG)
     parser.add_argument("--policy", default="TD3")
@@ -293,8 +209,10 @@ if __name__ == "__main__":
     parser.add_argument("--expl_noise", default=0.1)
     # Batch size for both actor and critic
     parser.add_argument("--batch_size", default=256, type=int)
-    parser.add_argument("--discount", default=0.99)  # Discount factor
-    parser.add_argument("--tau", default=0.005)  # Target network update rate
+    # Discount factor
+    parser.add_argument("--discount", default=0.99)  
+    # Target network update rate
+    parser.add_argument("--tau", default=0.005)  
     # Noise added to target policy during critic update
     parser.add_argument("--policy_noise", default=0.2)
     # Range to clip target policy noise
@@ -305,12 +223,14 @@ if __name__ == "__main__":
     parser.add_argument("--save_model", action="store_true")
     # Model load file name, "" doesn't load, "default" uses file_name
     parser.add_argument("--load_model", default="")
-    parser.add_argument("--jit_duration", default=0.0, type=float,
+    parser.add_argument("--jit_duration", default=0.04, type=float,
                         help="Duration in seconds for the horizontal force")
     parser.add_argument("--g_ratio", default=0, type=float,
                         help='Maximum horizontal force g ratio')
     parser.add_argument("--response_rate", default=0.04,
                         type=float, help="Response time of the agent in seconds")
+    # Use standard evaluation or original evaluation policy
+    parser.add_argument("--std_eval", action="store_true")
 
     args = parser.parse_args()
     args = vars(args)

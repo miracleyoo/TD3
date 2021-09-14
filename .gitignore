@@ -3,3 +3,6 @@ results/
 
 *.pyc
 /learning_curves
+/backup/
+/.idea/
+/.vscode/
