@@ -1,6 +1,6 @@
 import gym
 import numpy as np
-
+from gym.envs.mujoco import inverted_pendulum
 __all__=["make_env", "jitter_step"]
 
 # Make environment using its name
@@ -26,3 +26,5 @@ def jitter_step(self, a, force, frames1, frames2):
     notdone = np.isfinite(ob).all() and (np.abs(ob[1]) <= 0.2)
     done = not notdone
     return ob, reward, done, {}
+
+inverted_pendulum.InvertedPendulumEnv.jitter_step = jitter_step
