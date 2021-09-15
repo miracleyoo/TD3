@@ -11,7 +11,6 @@ def make_env(env_name, seed, time_change_factor, env_timestep, frameskip):
     env._max_episode_steps = 1000 * time_change_factor
     env.model.opt.timestep = env_timestep
     env.frameskip = frameskip
-    env.jitter_step = jitter_step
     return env
 
 # The alternative step function when some frames of a step are under the
