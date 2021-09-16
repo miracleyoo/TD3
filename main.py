@@ -1,195 +1,224 @@
+import DDPG
+import OurDDPG
+import TD3
+import utils
 import numpy as np
 import torch
-import gym
 import argparse
 import os
 import random
 
-import utils
-import TD3
-import OurDDPG
-import DDPG
+from utils import make_env
+from evals import *
 
+default_timestep = 0.02
+default_frame_skip = 2
 
-# Runs policy for X episodes and returns average reward
-# A fixed seed is used for the eval environment
-def eval_policy(policy, env_name, seed, eval_episodes=10):
-	eval_env = gym.make(env_name)
-	eval_env.seed(seed + 100)
+# Main function of the policy. Model is trained and evaluated inside.
+def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timesteps=1e5,
+          expl_noise=0.1, batch_size=256, discount=0.99, tau=0.005, policy_freq=2, policy_noise=2, noise_clip=0.5,
+          save_model=False, load_model="", jit_duration=0.02, g_ratio=1, response_rate=0.04, std_eval=False):
+    hori_force = g_ratio * 9.81
+    env_name = 'InvertedPendulum-v2'
+    eval_policy = eval_policy_std if std_eval else eval_policy_ori
+    arguments = [policy, env_name, seed, jit_duration, g_ratio, response_rate]
+    file_name = '_'.join([str(x) for x in arguments])
+    print("---------------------------------------")
+    print(f"Policy: {policy}, Env: {env_name}, Seed: {seed}")
+    print("---------------------------------------")
 
-	avg_reward = 0.
-	for _ in range(eval_episodes):
-		state, done = eval_env.reset(), False
-		while not done:
-			action = policy.select_action(np.array(state))
-			state, reward, done, _ = eval_env.step(action)
-			avg_reward += reward
+    if not os.path.exists("./results"):
+        os.makedirs("./results")
 
-	avg_reward /= eval_episodes
+    if save_model and not os.path.exists("./models"):
+        os.makedirs("./models")
 
-	print("---------------------------------------")
-	print(f"Evaluation over {eval_episodes} episodes: {avg_reward:.3f}")
-	print("---------------------------------------")
-	return avg_reward
+    if response_rate % default_timestep == 0:
+        frame_skip = response_rate / default_timestep
+        timestep = default_timestep
+    elif jit_duration:
+        timestep = jit_duration
+        frame_skip = response_rate / timestep
+    else:
+        timestep = response_rate
+        frame_skip = 1
+    jit_frames = 0  # How many frames the horizontal jitter force lasts each time
+    if jit_duration:
+        if jit_duration % timestep == 0:
+            jit_frames = jit_duration / timestep
+        else:
+            raise ValueError(
+                "jit_duration should be a multiple of the timestep: " + str(timestep))
+
+    print('timestep:', timestep)  # How long does it take before two frames
+    # How many frames to skip before return the state, 1 by default
+    print('frameskip:', frame_skip)
+
+    # The ratio of the default time consumption between two states returned and reset version.
+    # Used to reset the max episode number to guarantee the actual max time is always the same.
+    time_change_factor = (default_timestep * default_frame_skip) / (timestep * frame_skip)
+    env = make_env(env_name, seed, time_change_factor, timestep, frame_skip)
+
+    print('time change factor', time_change_factor)
+    # Set seeds
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+
+    max_timesteps = max_timesteps * time_change_factor
+    eval_freq = eval_freq * time_change_factor
+    start_timesteps = start_timesteps * time_change_factor
+
+    state_dim = env.observation_space.shape[0]
+    action_dim = env.action_space.shape[0]
+    max_action = float(env.action_space.high[0])
+
+    kwargs = {
+        "state_dim": state_dim,
+        "action_dim": action_dim,
+        "max_action": max_action,
+        "discount": discount,
+        "tau": tau,
+    }
+
+    # Initialize policy
+    if policy == "TD3":
+        # Target policy smoothing is scaled wrt the action scale
+        kwargs["policy_noise"] = policy_noise * max_action
+        kwargs["noise_clip"] = noise_clip * max_action
+        kwargs["policy_freq"] = policy_freq
+        policy = TD3.TD3(**kwargs)
+    elif policy == "OurDDPG":
+        policy = OurDDPG.DDPG(**kwargs)
+    elif policy == "DDPG":
+        policy = DDPG.DDPG(**kwargs)
+
+    if load_model != "":
+        policy_file = file_name if load_model == "default" else load_model
+        policy.load(f"./models/{policy_file}")
+
+    replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
+
+    # Evaluate untrained policy
+    evaluations = [eval_policy(policy, env_name, eval_episodes=10, time_change_factor=time_change_factor,
+                               jit_duration=jit_duration, env_timestep=timestep, force=hori_force, frame_skip=frame_skip,
+                               jit_frames=jit_frames)]
+
+    state, done = env.reset(), False
+    episode_reward = 0
+    episode_timesteps = 0
+    episode_num = 0
+
+    if jit_duration:
+        counter = 1
+        disturb = random.randint(50, 100) * time_change_factor
+        print("==> Using Horizontal Jitter!")
+
+    jittering = False
+    for t in range(int(max_timesteps)):
+        episode_timesteps += 1
+
+        # Select action randomly or according to policy
+        if t < start_timesteps:
+            action = env.action_space.sample()
+        else:
+            action = (
+                policy.select_action(np.array(state))
+                + np.random.normal(0, max_action * expl_noise, size=action_dim)
+            ).clip(-max_action, max_action)
+
+        # Perform action
+        if not jittering:  # Not during the frames when jitter force keeps existing
+            next_state, reward, done, _ = env.step(action)
+            # print(next_state)
+        elif jit_frames - jittered_frames < frame_skip:  # Jitter force will dispear from now!
+            next_state, reward, done, _ = env.jitter_step(
+                action, jitter_force, jit_frames - jittered_frames, frame_skip - (jit_frames - jittered_frames))
+            jittering = False  # Stop jittering now
+            disturb = random.randint(50, 100) * time_change_factor # Define the next jittering frame
+            env.model.opt.gravity[0] = 0
+            counter = 1
+        else:  # Jitter force keeps existing now!
+            next_state, reward, done, _ = env.step(action)
+            jittered_frames += frame_skip
+            if jittered_frames == jit_frames:
+                jittering = False
+                disturb = random.randint(50, 100) * time_change_factor
+                env.model.opt.gravity[0] = 0
+                counter = 1
+
+        done_bool = float(done) if episode_timesteps < env._max_episode_steps else 0
+
+        # Store data in replay buffer
+        replay_buffer.add(state, action, next_state, reward, done_bool)
+
+        state = next_state
+        episode_reward += reward
+
+        # Train agent after collecting sufficient data
+        if t >= start_timesteps:
+            policy.train(replay_buffer, batch_size)
+
+        if done:
+            # +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True
+            print(
+                f"Total T: {t+1} Episode Num: {episode_num+1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}")
+            # Reset environment
+            state, done = env.reset(), False
+            episode_reward = 0
+            episode_timesteps = 0
+            episode_num += 1
+
+        # Evaluate episode
+        if (t + 1) % eval_freq == 0:
+            evaluations.append(
+                eval_policy(policy, env_name, eval_episodes=10, time_change_factor=time_change_factor,
+                            jit_duration=jit_duration, env_timestep=timestep, force=hori_force, frame_skip=frame_skip,
+                            jit_frames=jit_frames))
+            np.save(f"./results/{file_name}", evaluations)
+            if save_model:
+                policy.save(f"./models/{file_name}")
+
+        if jit_duration:
+            if counter % disturb == 0:  # Execute adding jitter horizontal force here
+                jitter_force = np.random.random() * hori_force * \
+                    (2*(np.random.random() > 0.5)-1)  # Jitter force strength w/ direction
+                env.model.opt.gravity[0] = jitter_force
+                jittering = True
+                jittered_frames = 0
+            counter += 1
+
+        # if t >= 25000:
+        #     env.render()
 
 
 if __name__ == "__main__":
-	
-	parser = argparse.ArgumentParser()
-	parser.add_argument("--policy", default="TD3")				  # Policy name (TD3, DDPG or OurDDPG)
-	parser.add_argument("--env", default="HalfCheetah-v2")		  # OpenAI gym environment name
-	parser.add_argument("--seed", default=0, type=int)			  # Sets Gym, PyTorch and Numpy seeds
-	parser.add_argument("--start_timesteps", default=25e3, type=int)# Time steps initial random policy is used
-	parser.add_argument("--eval_freq", default=5e3, type=int)	  # How often (time steps) we evaluate
-	parser.add_argument("--max_timesteps", default=1e6, type=int) # Max time steps to run environment
-	parser.add_argument("--expl_noise", default=0.1)			  # Std of Gaussian exploration noise
-	parser.add_argument("--batch_size", default=256, type=int)	  # Batch size for both actor and critic
-	parser.add_argument("--discount", default=0.99)				  # Discount factor
-	parser.add_argument("--tau", default=0.005)					  # Target network update rate
-	parser.add_argument("--policy_noise", default=0.2)			  # Noise added to target policy during critic update
-	parser.add_argument("--noise_clip", default=0.5)			  # Range to clip target policy noise
-	parser.add_argument("--policy_freq", default=2, type=int)	  # Frequency of delayed policy updates
-	parser.add_argument("--save_model", action="store_true")	  # Save model and optimizer parameters
-	parser.add_argument("--load_model", default="")				  # Model load file name, "" doesn't load, "default" uses file_name
-	parser.add_argument("--jit", action="store_true")			  # Whether use jetter or not
-	parser.add_argument("--fluid", default="none", choices=('none', 'air', 'water'))				  # Policy name (TD3, DDPG or OurDDPG)
-	parser.add_argument("--force_type", default="wind", choices=('none', 'gravity', 'wind'))				  # Policy name (TD3, DDPG or OurDDPG)
-	parser.add_argument("--ratio", default=4, type=int)	      # Maximum horizontal force g/wind ratio
-	# parser.add_argument("--speed_ratio", default=1, type=int)	  # Maximum horizontal force g ratio
-	
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--policy", default="TD3", help="Policy name (TD3, DDPG or OurDDPG)")
+    parser.add_argument("--seed", default=0, type=int, help="Sets Gym, PyTorch and Numpy seeds")
+    parser.add_argument("--start_timesteps", default=25e3, type=int, help="Time steps initial random policy is used")
+    parser.add_argument("--eval_freq", default=5e3, type=int, help="How often (time steps) we evaluate")
+    parser.add_argument("--max_timesteps", default=1e5, type=int, help="Max time steps to run environment")
+    parser.add_argument("--expl_noise", default=0.1, help="Std of Gaussian exploration noise")
+    parser.add_argument("--batch_size", default=256, type=int, help="Batch size for both actor and critic")
+    parser.add_argument("--discount", default=0.99, help="Discount factor")
+    parser.add_argument("--tau", default=0.005, help="Target network update rate")
+    parser.add_argument("--policy_noise", default=0.2, help="Noise added to target policy during critic update")
+    parser.add_argument("--noise_clip", default=0.5, help="Range to clip target policy noise")
+    parser.add_argument("--policy_freq", default=2, type=int, help="Frequency of delayed policy updates")
+    parser.add_argument("--save_model", action="store_true", help="Save model and optimizer parameters")
+    parser.add_argument("--load_model", default="", help="Model load file name, `` doesn't load, `default` uses file_name")
+    parser.add_argument("--jit_duration", default=0.04, type=float, help="Duration in seconds for the horizontal force")
+    parser.add_argument("--g_ratio", default=0, type=float, help='Maximum horizontal force g ratio')
+    parser.add_argument("--response_rate", default=0.04, type=float, help="Response time of the agent in seconds")
+    parser.add_argument("--std_eval", action="store_true", help="Use standard evaluation or original evaluation policy")
 
-	args = parser.parse_args()
+    args = parser.parse_args()
+    args = vars(args)
+    print()
+    print('Command-line argument values:')
+    for key, value in args.items():
+        print('-', key, ':', value)
 
-	file_name = f"{args.policy}_{args.env}_{args.seed}"
-	print("---------------------------------------")
-	print(f"Policy: {args.policy}, Env: {args.env}, Seed: {args.seed}")
-	print("---------------------------------------")
+    print()
 
-	if not os.path.exists("./results"):
-		os.makedirs("./results")
-
-	if args.save_model and not os.path.exists("./models"):
-		os.makedirs("./models")
-
-	env = gym.make(args.env)
-
-	# Set seeds
-	env.seed(args.seed)
-	env.action_space.seed(args.seed)
-	torch.manual_seed(args.seed)
-	np.random.seed(args.seed)
-
-	# Set Fluid Environment
-	if args.fluid == 'air':
-		env.model.opt.density = 1.225
-		env.model.opt.viscosity = 0.0000185
-	elif args.fluid == 'water':
-		env.model.opt.density = 997
-		env.model.opt.viscosity = 0.00089
-	
-	state_dim = env.observation_space.shape[0]
-	action_dim = env.action_space.shape[0] 
-	max_action = float(env.action_space.high[0])
-
-	kwargs = {
-		"state_dim": state_dim,
-		"action_dim": action_dim,
-		"max_action": max_action,
-		"discount": args.discount,
-		"tau": args.tau,
-	}
-
-	# Initialize policy
-	if args.policy == "TD3":
-		# Target policy smoothing is scaled wrt the action scale
-		kwargs["policy_noise"] = args.policy_noise * max_action
-		kwargs["noise_clip"] = args.noise_clip * max_action
-		kwargs["policy_freq"] = args.policy_freq
-		policy = TD3.TD3(**kwargs)
-	elif args.policy == "OurDDPG":
-		policy = OurDDPG.DDPG(**kwargs)
-	elif args.policy == "DDPG":
-		policy = DDPG.DDPG(**kwargs)
-
-	if args.load_model != "":
-		policy_file = file_name if args.load_model == "default" else args.load_model
-		policy.load(f"./models/{policy_file}")
-
-	replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
-	
-	# Evaluate untrained policy
-	evaluations = [eval_policy(policy, args.env, args.seed)]
-
-	state, done = env.reset(), False
-	episode_reward = 0
-	episode_timesteps = 0
-	episode_num = 0
-
-	if args.jit:
-		counter = 0
-		lasttime = 2
-		disturb = random.randint(50,100)
-		print("==> Using Horizontal Jitter!")
-
-	for t in range(int(args.max_timesteps)):		
-		episode_timesteps += 1
-
-		# Select action randomly or according to policy
-		if t < args.start_timesteps:
-			action = env.action_space.sample()
-		else:
-			action = (
-				policy.select_action(np.array(state))
-				+ np.random.normal(0, max_action * args.expl_noise, size=action_dim)
-			).clip(-max_action, max_action)
-
-		# Perform action
-		next_state, reward, done, _ = env.step(action) 
-		done_bool = float(done) if episode_timesteps < env._max_episode_steps else 0
-
-		# Store data in replay buffer
-		replay_buffer.add(state, action, next_state, reward, done_bool)
-
-		state = next_state
-		episode_reward += reward
-
-		# Train agent after collecting sufficient data
-		if t >= args.start_timesteps:
-			policy.train(replay_buffer, args.batch_size)
-
-		if done: 
-			# +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True
-			print(f"Total T: {t+1} Episode Num: {episode_num+1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}")
-			# Reset environment
-			state, done = env.reset(), False
-			episode_reward = 0
-			episode_timesteps = 0
-			episode_num += 1 
-
-		# Evaluate episode
-		if (t + 1) % args.eval_freq == 0:
-			evaluations.append(eval_policy(policy, args.env, args.seed))
-			np.save(f"./results/{file_name}", evaluations)
-			if args.save_model: policy.save(f"./models/{file_name}")
-
-		if args.jit:
-			if args.force_type == 'gravity':
-				if counter>0 and counter%disturb == 0:
-					hori_force = (((args.ratio-1)*random.random()+1)*9.81)*(2*(random.random()>0.5)-1)
-					env.model.opt.gravity[0] = hori_force
-				if counter>lasttime and counter%disturb == lasttime:
-					env.model.opt.gravity[0] = 0
-					disturb = random.randint(50,100)
-					counter=0
-			elif args.force_type == 'wind':
-				if counter>0 and counter%disturb == 0:
-					hori_wind = ((args.ratio-1)*random.random()+1)*(2*(random.random()>0.5)-1)
-					env.model.opt.wind[0] = hori_wind
-				if counter>lasttime and counter%disturb == lasttime:
-					env.model.opt.wind[0] = 0
-					disturb = random.randint(50,100)
-					counter=0				
-			counter+=1
-
-		if t>=28000:
-			env.render()
+    train(**args)

@@ -1,9 +1,6 @@
-from common import make_env
+from utils import make_env
 import numpy as np
 import random
-import sys
-sys.path.append('../')
-
 
 __all__ = ["eval_policy_std", "eval_policy_ori"]
 
