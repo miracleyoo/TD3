@@ -15,11 +15,10 @@ default_timestep = 0.02
 default_frame_skip = 2
 
 # Main function of the policy. Model is trained and evaluated inside.
-def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timesteps=1e5,
+def train(env_name='InvertedPendulum-v2', policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timesteps=1e5,
           expl_noise=0.1, batch_size=256, discount=0.99, tau=0.005, policy_freq=2, policy_noise=2, noise_clip=0.5,
           save_model=False, load_model="", jit_duration=0.02, g_ratio=1, response_rate=0.04, std_eval=False):
     hori_force = g_ratio * 9.81
-    env_name = 'InvertedPendulum-v2'
     eval_policy = eval_policy_std if std_eval else eval_policy_ori
     arguments = [policy, env_name, seed, jit_duration, g_ratio, response_rate]
     file_name = '_'.join([str(x) for x in arguments])
@@ -193,6 +192,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--env_name", default="InvertedPendulum-v2", help="The environment name.")
     parser.add_argument("--policy", default="TD3", help="Policy name (TD3, DDPG or OurDDPG)")
     parser.add_argument("--seed", default=0, type=int, help="Sets Gym, PyTorch and Numpy seeds")
     parser.add_argument("--start_timesteps", default=25e3, type=int, help="Time steps initial random policy is used")

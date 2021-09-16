@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import gym
+import types
 
 __all__=["make_env", "jitter_step", "ReplayBuffer"]
 
@@ -12,7 +13,8 @@ def make_env(env_name, seed, time_change_factor, env_timestep, frameskip):
     env._max_episode_steps = 1000 * time_change_factor
     env.model.opt.timestep = env_timestep
     env.frameskip = frameskip
-    env.jitter_step = jitter_step
+    env.env.jitter_step = types.MethodType(jitter_step, env.env)
+    # print('\n\n!!!:', env.env.__class__.__name__)
     return env
 
 # The alternative step function when some frames of a step are under the
@@ -21,7 +23,7 @@ def jitter_step(self, a, force, frames1, frames2):
     self.model.opt.gravity[0] = force
     reward = 1.0
     self.do_simulation(a, int(frames1))
-    self.model.opt.gravity[0] = 0 # force # 0 here? frames1 are with force while frames2 are supposed not.
+    self.model.opt.gravity[0] = 0
     self.do_simulation(a, int(frames2))
     ob = self._get_obs()
     notdone = np.isfinite(ob).all() and (np.abs(ob[1]) <= 0.2)
