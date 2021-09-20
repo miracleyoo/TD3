@@ -20,11 +20,12 @@ default_frame_skip = 2
 # Main function of the policy. Model is trained and evaluated inside.
 def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timesteps=1e5,
           expl_noise=0.1, batch_size=256, discount=0.99, tau=0.005, policy_freq=2, policy_noise=2, noise_clip=0.5,
-          save_model=False, load_model="", jit_duration=0.02, g_ratio=1, response_rate=0.04, std_eval=False):
+          save_model=False, load_model="", jit_duration=0.02, g_ratio=1, response_rate=0.04, std_eval=False,
+          catastrophe_frequency=1):
     hori_force = g_ratio * 9.81
     env_name = 'InvertedPendulum-v2'
     eval_policy = eval_policy_std if std_eval else eval_policy_ori
-    arguments = [policy, env_name, seed, jit_duration, g_ratio, response_rate]
+    arguments = [policy, env_name, seed, jit_duration, g_ratio, response_rate, catastrophe_frequency]
     file_name = '_'.join([str(x) for x in arguments])
     print("---------------------------------------")
     print(f"Policy: {policy}, Env: {env_name}, Seed: {seed}")
@@ -113,7 +114,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
     if jit_duration:
         counter = 1
-        disturb = random.randint(50, 100) * time_change_factor
+        disturb = random.randint(50, 100) * time_change_factor * (1/catastrophe_frequency)
         print("==> Using Horizontal Jitter!")
 
     jittering = False
@@ -137,7 +138,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
             next_state, reward, done, _ = env.jitter_step(
                 action, jitter_force, jit_frames - jittered_frames, frame_skip - (jit_frames - jittered_frames))
             jittering = False  # Stop jittering now
-            disturb = random.randint(50, 100) * time_change_factor # Define the next jittering frame
+            disturb = random.randint(50, 100) * time_change_factor * (1/catastrophe_frequency) # Define the next jittering frame
             env.model.opt.gravity[0] = 0
             counter = 1
         else:  # Jitter force keeps existing now!
@@ -145,7 +146,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
             jittered_frames += frame_skip
             if jittered_frames == jit_frames:
                 jittering = False
-                disturb = random.randint(50, 100) * time_change_factor
+                disturb = random.randint(50, 100) * time_change_factor * (1/catastrophe_frequency)
                 env.model.opt.gravity[0] = 0
                 counter = 1
 
@@ -214,6 +215,8 @@ if __name__ == "__main__":
     parser.add_argument("--g_ratio", default=0, type=float, help='Maximum horizontal force g ratio')
     parser.add_argument("--response_rate", default=0.04, type=float, help="Response time of the agent in seconds")
     parser.add_argument("--std_eval", action="store_true", help="Use standard evaluation or original evaluation policy")
+    parser.add_argument("--catastrophe_frequency", default=1.0, type=float, help="Modify how often to apply catastrophe")
+
 
     args = parser.parse_args()
     args = vars(args)
