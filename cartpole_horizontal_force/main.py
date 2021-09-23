@@ -69,7 +69,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     np.random.seed(seed)
 
     max_timesteps = max_timesteps * time_change_factor
-    eval_freq = eval_freq * time_change_factor
+    eval_freq = int(eval_freq * time_change_factor)
     start_timesteps = start_timesteps * time_change_factor
 
     state_dim = env.observation_space.shape[0]
