@@ -211,6 +211,8 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
                 jittering = True
                 jittered_frames = 0
 
+    if save_model:
+        policy.save(f"./models/{file_name}")
         # if t >= 25000:
         #     env.render()
 
