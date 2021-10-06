@@ -116,10 +116,10 @@ def eval_policy_ori(policy, env_name, eval_episodes=10, time_change_factor=1, ji
                     if jittered_frames >= jit_frames:
                         jittered_frames = 0
                         jittering = False
-                        self.model.opt.gravity[0] = 0
+                        eval_env.model.opt.gravity[0] = 0
                     else:
                         jittering = True
-                        self.model.opt.gravity[0] = jitter_force
+                        eval_env.model.opt.gravity[0] = jitter_force
 
                     counter += response_rate
 
