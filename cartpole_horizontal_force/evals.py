@@ -104,13 +104,13 @@ def eval_policy_ori(policy, env_name, eval_episodes=10, time_change_factor=1, ji
 
             if jit_duration:
                 if not jittering and disturb - counter >= response_rate:  # Not during the frames when jitter force keeps existing
-                    next_state, reward, done, _ = env.step(action)
+                    next_state, reward, done, _ = eval_env.step(action)
                     counter += response_rate
                     # print(next_state)
                 elif not jittering and disturb - counter < response_rate:
                     jitter_force = np.random.random() * hori_force * (
                                 2 * (np.random.random() > 0.5) - 1)  # Jitter force strength w/ direction
-                    env.jitter_step_start(action, jitter_force, (disturb - count) / timestep,
+                    eval_env.jitter_step_start(action, jitter_force, (disturb - count) / timestep,
                                           frame_skip - ((disturb - count) / timestep), jit_frames)
                     jittered_frames = frame_skip - ((disturb - count) / timestep)
                     if jittered_frames >= jit_frames:
@@ -124,22 +124,22 @@ def eval_policy_ori(policy, env_name, eval_episodes=10, time_change_factor=1, ji
                     counter += response_rate
 
                 elif jit_frames - jittered_frames < frame_skip:  # Jitter force will dispear from now!
-                    next_state, reward, done, _ = env.jitter_step_end(
+                    next_state, reward, done, _ = eval_env.jitter_step_end(
                         action, jitter_force, jit_frames - jittered_frames, frame_skip - (jit_frames - jittered_frames))
                     jittering = False  # Stop jittering now
                     disturb = random.randint(50, 100) * 0.04  # Define the next jittering frame
-                    env.model.opt.gravity[0] = 0
+                    eval_env.model.opt.gravity[0] = 0
                     counter = 0
                 else:  # Jitter force keeps existing now!
-                    next_state, reward, done, _ = env.step(action)
+                    next_state, reward, done, _ = eval_env.step(action)
                     jittered_frames += frame_skip
                     if jittered_frames == jit_frames:
                         jittering = False
                         disturb = random.randint(50, 100) * 0.04
-                        env.model.opt.gravity[0] = 0
+                        eval_env.model.opt.gravity[0] = 0
                         counter = 0
             else:
-                next_state, reward, done, _ = env.step(action)
+                next_state, reward, done, _ = eval_env.step(action)
                 counter += response_rate
 
             avg_reward += reward
