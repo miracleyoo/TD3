@@ -140,8 +140,8 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
                 # print(next_state)
             elif not jittering and disturb - counter < response_rate:
                 jitter_force = np.random.random() * hori_force * (2 * (np.random.random() > 0.5) - 1)  # Jitter force strength w/ direction
-                env.jitter_step_start(action, jitter_force, (disturb - count)/timestep, frame_skip - ((disturb - count)/timestep), jit_frames)
-                jittered_frames = frame_skip - ((disturb - count)/timestep)
+                env.jitter_step_start(action, jitter_force, (disturb - counter)/timestep, frame_skip - ((disturb - counter)/timestep), jit_frames)
+                jittered_frames = frame_skip - ((disturb - counter)/timestep)
                 if jittered_frames >= jit_frames:
                     jittered_frames = 0
                     jittering = False
