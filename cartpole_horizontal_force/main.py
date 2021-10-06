@@ -17,6 +17,7 @@ from evals import *
 default_timestep = 0.02
 default_frame_skip = 2
 
+
 # Main function of the policy. Model is trained and evaluated inside.
 def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timesteps=1e5,
           expl_noise=0.1, batch_size=256, discount=0.99, tau=0.005, policy_freq=2, policy_noise=2, noise_clip=0.5,
@@ -113,8 +114,8 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     episode_num = 0
 
     if jit_duration:
-        counter = 1
-        disturb = random.randint(50, 100) * time_change_factor * (1/catastrophe_frequency)
+        counter = 0
+        disturb = random.randint(50, 100) * 0.04 * (1/catastrophe_frequency)
         print("==> Using Horizontal Jitter!")
 
     jittering = False
@@ -131,25 +132,45 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
             ).clip(-max_action, max_action)
 
         # Perform action
-        if not jittering:  # Not during the frames when jitter force keeps existing
-            next_state, reward, done, _ = env.step(action)
-            # print(next_state)
-        elif jit_frames - jittered_frames < frame_skip:  # Jitter force will dispear from now!
-            next_state, reward, done, _ = env.jitter_step(
-                action, jitter_force, jit_frames - jittered_frames, frame_skip - (jit_frames - jittered_frames))
-            jittering = False  # Stop jittering now
-            disturb = random.randint(50, 100) * time_change_factor * (1/catastrophe_frequency) # Define the next jittering frame
-            env.model.opt.gravity[0] = 0
-            counter = 1
-        else:  # Jitter force keeps existing now!
-            next_state, reward, done, _ = env.step(action)
-            jittered_frames += frame_skip
-            if jittered_frames == jit_frames:
-                jittering = False
-                disturb = random.randint(50, 100) * time_change_factor * (1/catastrophe_frequency)
-                env.model.opt.gravity[0] = 0
-                counter = 1
+        if jit_duration:
+            if not jittering and disturb - counter >= response_rate:  # Not during the frames when jitter force keeps existing
+                next_state, reward, done, _ = env.step(action)
+                counter += response_rate
 
+                # print(next_state)
+            elif not jittering and disturb - counter < response_rate:
+                jitter_force = np.random.random() * hori_force * (2 * (np.random.random() > 0.5) - 1)  # Jitter force strength w/ direction
+                env.jitter_step_start(action, jitter_force, (disturb - count)/timestep, frame_skip - ((disturb - count)/timestep), jit_frames)
+                jittered_frames = frame_skip - ((disturb - count)/timestep)
+                if jittered_frames >= jit_frames:
+                    jittered_frames = 0
+                    jittering = False
+                    self.model.opt.gravity[0] = 0
+                else:
+                    jittering = True
+                    self.model.opt.gravity[0] = jitter_force
+
+                counter += response_rate
+
+
+            elif jit_frames - jittered_frames < frame_skip:  # Jitter force will dispear from now!
+                next_state, reward, done, _ = env.jitter_step_end(
+                    action, jitter_force, jit_frames - jittered_frames, frame_skip - (jit_frames - jittered_frames))
+                jittering = False  # Stop jittering now
+                disturb = random.randint(50, 100) * 0.04 * (1/catastrophe_frequency) # Define the next jittering frame
+                env.model.opt.gravity[0] = 0
+                counter = 0
+            else:  # Jitter force keeps existing now!
+                next_state, reward, done, _ = env.step(action)
+                jittered_frames += frame_skip
+                if jittered_frames == jit_frames:
+                    jittering = False
+                    disturb = random.randint(50, 100) * 0.04 * (1/catastrophe_frequency)
+                    env.model.opt.gravity[0] = 0
+                    counter = 0
+        else:
+            next_state, reward, done, _ = env.step(action)
+            counter += response_rate
         done_bool = float(done) if episode_timesteps < env._max_episode_steps else 0
 
         # Store data in replay buffer
@@ -183,13 +204,12 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
                 policy.save(f"./models/{file_name}")
 
         if jit_duration:
-            if counter % disturb == 0:  # Execute adding jitter horizontal force here
+            if counter == disturb:  # Execute adding jitter horizontal force here
                 jitter_force = np.random.random() * hori_force * \
                     (2*(np.random.random() > 0.5)-1)  # Jitter force strength w/ direction
                 env.model.opt.gravity[0] = jitter_force
                 jittering = True
                 jittered_frames = 0
-            counter += 1
 
         # if t >= 25000:
         #     env.render()
@@ -216,7 +236,6 @@ if __name__ == "__main__":
     parser.add_argument("--response_rate", default=0.04, type=float, help="Response time of the agent in seconds")
     parser.add_argument("--std_eval", action="store_true", help="Use standard evaluation or original evaluation policy")
     parser.add_argument("--catastrophe_frequency", default=1.0, type=float, help="Modify how often to apply catastrophe")
-
 
     args = parser.parse_args()
     args = vars(args)
