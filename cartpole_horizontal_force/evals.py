@@ -108,7 +108,7 @@ def eval_policy_ori(policy, env_name, eval_episodes=10, time_change_factor=1, ji
                     counter += response_rate
                     # print(next_state)
                 elif not jittering and disturb - counter < response_rate:
-                    jitter_force = np.random.random() * hori_force * (
+                    jitter_force = np.random.random() * force * (
                                 2 * (np.random.random() > 0.5) - 1)  # Jitter force strength w/ direction
                     eval_env.jitter_step_start(action, jitter_force, (disturb - count) / timestep,
                                           frame_skip - ((disturb - count) / timestep), jit_frames)
