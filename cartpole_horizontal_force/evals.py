@@ -89,10 +89,6 @@ def eval_policy_ori(policy, env_name, eval_episodes=10, time_change_factor=1, ji
                         env_timestep, frame_skip)
 
     avg_reward = 0.
-    if jit_duration:
-        counter = 0
-        disturb = random.randint(50, 100) * 0.04
-        print("==> Using Horizontal Jitter!")
 
     jittering = False
     t = 0
@@ -100,6 +96,9 @@ def eval_policy_ori(policy, env_name, eval_episodes=10, time_change_factor=1, ji
         state, done = eval_env.reset(), False
         while not done:
             action = policy.select_action(np.array(state))
+            if jit_duration:
+                counter = 0
+                disturb = random.randint(50, 100) * 0.04
             # Perform action
 
             if jit_duration:
