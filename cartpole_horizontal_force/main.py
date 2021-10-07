@@ -146,11 +146,11 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
                     jittered_frames = 0
                     jittering = False
                     env.model.opt.gravity[0] = 0
+                    counter = 0
                 else:
                     jittering = True
                     env.model.opt.gravity[0] = jitter_force
-
-                counter += response_rate
+                    counter += response_rate
 
 
             elif jit_frames - jittered_frames < frame_skip:  # Jitter force will dispear from now!

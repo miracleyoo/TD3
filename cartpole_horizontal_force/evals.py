@@ -116,11 +116,11 @@ def eval_policy_ori(policy, env_name, eval_episodes=10, time_change_factor=1, ji
                         jittered_frames = 0
                         jittering = False
                         eval_env.model.opt.gravity[0] = 0
+                        counter = 0
                     else:
                         jittering = True
                         eval_env.model.opt.gravity[0] = jitter_force
-
-                    counter += response_rate
+                        counter += response_rate
 
                 elif jit_frames - jittered_frames < frame_skip:  # Jitter force will dispear from now!
                     next_state, reward, done, _ = eval_env.jitter_step_end(
