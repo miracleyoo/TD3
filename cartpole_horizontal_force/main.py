@@ -23,6 +23,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
           expl_noise=0.1, batch_size=256, discount=0.99, tau=0.005, policy_freq=2, policy_noise=2, noise_clip=0.5,
           save_model=False, load_model="", jit_duration=0.02, g_ratio=1, response_rate=0.04, std_eval=False,
           catastrophe_frequency=1):
+
     hori_force = g_ratio * 9.81
     env_name = 'InvertedPendulum-v2'
     eval_policy = eval_policy_std if std_eval else eval_policy_ori
@@ -204,7 +205,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
                             jit_frames=jit_frames))
             np.save(f"./results/{file_name}", evaluations)
             if save_model:
-                policy.save(f"./models/{file_name}")
+                policy.save(f"./models/{file_name}_{t}")
 
         if jit_duration:
             if counter == disturb:  # Execute adding jitter horizontal force here
@@ -215,7 +216,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
                 jittered_frames = 0
 
     if save_model:
-        policy.save(f"./models/{file_name}")
+        policy.save(f"./models/{file_name}_final")
         # if t >= 25000:
         #     env.render()
 

@@ -94,11 +94,11 @@ def eval_policy_ori(policy, env_name, eval_episodes=10, time_change_factor=1, ji
     t = 0
     for _ in range(eval_episodes):
         state, done = eval_env.reset(), False
+        if jit_duration:
+            counter = 0
+            disturb = random.randint(50, 100) * 0.04
         while not done:
             action = policy.select_action(np.array(state))
-            if jit_duration:
-                counter = 0
-                disturb = random.randint(50, 100) * 0.04
             # Perform action
 
             if jit_duration:
