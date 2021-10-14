@@ -42,7 +42,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     if response_rate % default_timestep == 0:
         frame_skip = response_rate / default_timestep
         timestep = default_timestep
-    elif jit_duration:
+    elif jit_duration < response_rate:
         timestep = jit_duration
         frame_skip = response_rate / timestep
     else:
@@ -51,7 +51,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     jit_frames = 0  # How many frames the horizontal jitter force lasts each time
     if jit_duration:
         if jit_duration % timestep == 0:
-            jit_frames = jit_duration / timestep
+            jit_frames = int(jit_duration / timestep)
         else:
             raise ValueError(
                 "jit_duration should be a multiple of the timestep: " + str(timestep))
@@ -134,12 +134,12 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
         # Perform action
         if jit_duration:
-            if not jittering and disturb - counter >= response_rate:  # Not during the frames when jitter force keeps existing
+            if not jittering and round(disturb - counter, 2) >= response_rate:  # Not during the frames when jitter force keeps existing
                 next_state, reward, done, _ = env.step(action)
                 counter += response_rate
 
                 # print(next_state)
-            elif not jittering and disturb - counter < response_rate:
+            elif not jittering and round(disturb - counter, 2) < response_rate:
                 jitter_force = np.random.random() * hori_force * (2 * (np.random.random() > 0.5) - 1)  # Jitter force strength w/ direction
                 next_state, reward, done, _ = env.jitter_step_start(action, jitter_force, (disturb - counter)/timestep, frame_skip - ((disturb - counter)/timestep), jit_frames)
                 jittered_frames = frame_skip - ((disturb - counter)/timestep)
@@ -165,6 +165,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
             else:  # Jitter force keeps existing now!
                 next_state, reward, done, _ = env.step(action)
                 jittered_frames += frame_skip
+                counter += response_rate
                 if jittered_frames == jit_frames:
                     jittering = False
                     disturb = random.randint(50, 100) * 0.04 * (1/catastrophe_frequency)
