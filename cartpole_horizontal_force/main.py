@@ -180,6 +180,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
         state = next_state
         episode_reward += reward
+        counter = round(counter, 2)
 
         # Train agent after collecting sufficient data
         if t >= start_timesteps:
