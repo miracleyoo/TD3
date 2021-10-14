@@ -20,9 +20,9 @@ def make_env(env_name, seed, time_change_factor, env_timestep, frameskip):
 def jitter_step_end(self, a, force, frames1, frames2):
     self.model.opt.gravity[0] = force
     reward = 1.0
-    self.do_simulation(a, int(frames1))
+    self.do_simulation(a, int(round(frames1)))
     self.model.opt.gravity[0] = 0 # force # 0 here? frames1 are with force while frames2 are supposed not.
-    self.do_simulation(a, int(frames2))
+    self.do_simulation(a, int(round(frames2)))
     ob = self._get_obs()
     notdone = np.isfinite(ob).all() and (np.abs(ob[1]) <= 0.2)
     done = not notdone
@@ -34,11 +34,11 @@ def jitter_step_start(self, a, force, frames1, frames2, jit_frames):
     self.do_simulation(a, int(frames1))
     self.model.opt.gravity[0] = force
     if frames2 < jit_frames:
-        self.do_simulation(a, int(frames2))
+        self.do_simulation(a, int(round(frames2)))
     else:
-        self.do_simulation(a, int(jit_frames))
+        self.do_simulation(a, int(round(jit_frames)))
         self.model.opt.gravity[0] = 0
-        self.do_simulation(a, int(frames2 - jit_frames))
+        self.do_simulation(a, int(round(frames2 - jit_frames)))
     ob = self._get_obs()
     notdone = np.isfinite(ob).all() and (np.abs(ob[1]) <= 0.2)
     done = not notdone

@@ -148,6 +148,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
                     jittering = False
                     env.model.opt.gravity[0] = 0
                     counter = 0
+                    disturb = random.randint(50, 100) * 0.04 * (1 / catastrophe_frequency)
                 else:
                     jittering = True
                     env.model.opt.gravity[0] = jitter_force
