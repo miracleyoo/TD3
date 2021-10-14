@@ -206,8 +206,8 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
                             jit_duration=jit_duration, env_timestep=timestep, force=hori_force, frame_skip=frame_skip,
                             jit_frames=jit_frames))
             np.save(f"./results/{file_name}", evaluations)
-            if save_model:
-                policy.save(f"./models/{file_name}_{t}")
+            # if save_model:
+            #     policy.save(f"./models/{file_name}_{t}")
 
         if jit_duration:
             if counter == disturb:  # Execute adding jitter horizontal force here
