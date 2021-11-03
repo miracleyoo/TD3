@@ -22,12 +22,12 @@ default_frame_skip = 2
 def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timesteps=1e5,
           expl_noise=0.1, batch_size=256, discount=0.99, tau=0.005, policy_freq=2, policy_noise=2, noise_clip=0.5,
           save_model=False, load_model="", jit_duration=0.02, g_ratio=1, response_rate=0.04, std_eval=False,
-          catastrophe_frequency=1):
+          catastrophe_frequency=1, delayed_env=False):
 
     hori_force = g_ratio * 9.81
     env_name = 'InvertedPendulum-v2'
     eval_policy = eval_policy_std if std_eval else eval_policy_ori
-    arguments = [policy, env_name, seed, jit_duration, g_ratio, response_rate, catastrophe_frequency]
+    arguments = [policy, env_name, seed, jit_duration, g_ratio, response_rate, catastrophe_frequency, delayed_env]
     file_name = '_'.join([str(x) for x in arguments])
     print("---------------------------------------")
     print(f"Policy: {policy}, Env: {env_name}, Seed: {seed}")
@@ -63,7 +63,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     # The ratio of the default time consumption between two states returned and reset version.
     # Used to reset the max episode number to guarantee the actual max time is always the same.
     time_change_factor = (default_timestep * default_frame_skip) / (timestep * frame_skip)
-    env = make_env(env_name, seed, time_change_factor, timestep, frame_skip)
+    env = make_env(env_name, seed, time_change_factor, timestep, frame_skip, delayed_env)
 
     print('time change factor', time_change_factor)
     # Set seeds
@@ -74,7 +74,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     eval_freq = int(eval_freq * time_change_factor)
     start_timesteps = start_timesteps * time_change_factor
 
-    state_dim = env.observation_space.shape[0]
+    state_dim = env.observation_space[0].shape[0] if delayed_env else env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
     max_action = float(env.action_space.high[0])
 
@@ -84,6 +84,8 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         "max_action": max_action,
         "discount": discount,
         "tau": tau,
+        "observation_space": env.observation_space,
+        "delayed_env": delayed_env
     }
 
     # Initialize policy
@@ -102,12 +104,15 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         policy_file = file_name if load_model == "default" else load_model
         policy.load(f"./models/{policy_file}")
 
-    replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
+    if delayed_env:
+        replay_buffer = utils.ReplayBuffer(state_dim+action_dim, action_dim)
+    else:
+        replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
 
     # Evaluate untrained policy
     evaluations = [eval_policy(policy, env_name, eval_episodes=10, time_change_factor=time_change_factor,
                                jit_duration=jit_duration, env_timestep=timestep, force=hori_force, frame_skip=frame_skip,
-                               jit_frames=jit_frames)]
+                               jit_frames=jit_frames, delayed_env=delayed_env)]
 
     state, done = env.reset(), False
     episode_reward = 0
@@ -205,7 +210,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
             evaluations.append(
                 eval_policy(policy, env_name, eval_episodes=10, time_change_factor=time_change_factor,
                             jit_duration=jit_duration, env_timestep=timestep, force=hori_force, frame_skip=frame_skip,
-                            jit_frames=jit_frames))
+                            jit_frames=jit_frames, delayed_env=delayed_env))
             np.save(f"./results/{file_name}", evaluations)
             # if save_model:
             #     policy.save(f"./models/{file_name}_{t}")
@@ -245,6 +250,8 @@ if __name__ == "__main__":
     parser.add_argument("--response_rate", default=0.04, type=float, help="Response time of the agent in seconds")
     parser.add_argument("--std_eval", action="store_true", help="Use standard evaluation or original evaluation policy")
     parser.add_argument("--catastrophe_frequency", default=1.0, type=float, help="Modify how often to apply catastrophe")
+    parser.add_argument("--delayed_env", action="store_true", help="Delay the environment by 1 step")
+
 
     args = parser.parse_args()
     args = vars(args)
