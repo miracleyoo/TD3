@@ -10,13 +10,14 @@ def make_env(env_name, seed, time_change_factor, env_timestep, frameskip, delaye
     if delayed_env:
         env = Float64ToFloat32(env)
         env = RealTimeWrapper(env)
+        env.env.env._max_episode_steps = 1000 * time_change_factor
     else:
         env.env.jitter_step_end = types.MethodType(jitter_step_end, env.env)
         env.env.jitter_step_start = types.MethodType(jitter_step_start, env.env)
+        env._max_episode_steps = 1000 * time_change_factor
     env.seed(seed)
     env.delayed = delayed_env
     env.action_space.seed(seed)
-    env._max_episode_steps = 1000 * time_change_factor
     env.model.opt.timestep = env_timestep
     env.frame_skip = int(frameskip)
     return env

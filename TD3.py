@@ -46,6 +46,42 @@ class DelayedActor(nn.Module):
         return self.max_action * torch.tanh(self.l3(a))
 
 
+class DelayedQuickActor(nn.Module):
+    def __init__(self, observation_space, action_dim, max_action):
+        super(DelayedQuickActor, self).__init__()
+
+        input_dim = sum(s.shape[0] for s in observation_space)
+        self.reflex_detector = nn.Linear(input_dim, 2)
+        self.reflex_detector.weight.requires_grad = False
+        self.reflex_detector.bias.requires_grad = False
+        self.reflex_detector.weight.data = torch.zeros(self.reflex_detector.weight.shape)
+        self.reflex_detector.weight.data[0, 1] = 1
+        self.reflex_detector.weight.data[1, 1] = -1
+        self.reflex_detector.bias.data = torch.ones(self.reflex_detector.bias.data.shape) * -0.15
+
+        self.reflex = nn.Linear(2, 1)
+        self.reflex.weight.requires_grad = False
+        self.reflex.bias.requires_grad = False
+        self.reflex.weight.data[0, 0] = 20
+        self.reflex.weight.data[0, 1] = -20
+        self.reflex.bias.data[0] = 0
+
+        self.l1 = nn.Linear(input_dim, 256)
+        self.l2 = nn.Linear(258, 256)
+        self.l3 = nn.Linear(256, action_dim)
+
+        self.max_action = max_action
+
+    def forward(self, state):
+        # state = torch.cat(state, dim=1)
+        a1 = F.relu(self.reflex_detector(state))
+        reflex = self.max_action * self.reflex(a1)
+
+        a2 = F.relu(self.l1(state))
+        a = F.relu(self.l2(torch.cat((a1, a2), dim=1)))
+        return reflex, self.max_action * torch.tanh(self.l3(a))
+
+
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim):
         super(Critic, self).__init__()
@@ -130,10 +166,16 @@ class TD3(object):
             noise_clip=0.5,
             policy_freq=2,
             delayed_env=False,
+            reflex=False
     ):
 
         self.delayed_env = delayed_env
-        if self.delayed_env:
+        self.reflex = reflex
+
+        if reflex:
+            self.actor = DelayedQuickActor(observation_space, action_dim, max_action).to(device)
+            self.critic = DelayedCritic(observation_space, action_dim).to(device)
+        elif self.delayed_env:
             self.actor = DelayedActor(observation_space, action_dim, max_action).to(device)
             self.critic = DelayedCritic(observation_space, action_dim).to(device)
         else:
@@ -156,8 +198,10 @@ class TD3(object):
 
     def select_action(self, state):
         state = torch.FloatTensor(state.reshape(1, -1)).to(device)
-        return self.actor(state).cpu().data.numpy().flatten()
-
+        if self.reflex:
+            return self.actor(state)[0].cpu().data.numpy().flatten(), self.actor(state)[1].cpu().data.numpy().flatten()
+        else:
+            return self.actor(state).cpu().data.numpy().flatten()
     def train(self, replay_buffer, batch_size=256):
         self.total_it += 1
 
@@ -169,10 +213,14 @@ class TD3(object):
             noise = (
                     torch.randn_like(action) * self.policy_noise
             ).clamp(-self.noise_clip, self.noise_clip)
-
-            next_action = (
-                    self.actor_target(next_state) + noise
-            ).clamp(-self.max_action, self.max_action)
+            if self.reflex:
+                next_action = (
+                        self.actor_target(next_state)[1] + noise
+                ).clamp(-self.max_action, self.max_action)
+            else:
+                next_action = (
+                        self.actor_target(next_state) + noise
+                ).clamp(-self.max_action, self.max_action)
 
             # Compute the target Q value
             target_Q1, target_Q2 = self.critic_target(next_state, next_action)
@@ -194,7 +242,10 @@ class TD3(object):
         if self.total_it % self.policy_freq == 0:
 
             # Compute actor losse
-            actor_loss = -self.critic.Q1(state, self.actor(state)).mean()
+            if self.reflex:
+                actor_loss = -self.critic.Q1(state, self.actor(state)[1]).mean()
+            else:
+                actor_loss = -self.critic.Q1(state, self.actor(state)).mean()
 
             # Optimize the actor
             self.actor_optimizer.zero_grad()
