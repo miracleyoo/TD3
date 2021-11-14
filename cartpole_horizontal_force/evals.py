@@ -171,7 +171,6 @@ def eval_policy_ori(policy, env_name, eval_episodes=10, time_change_factor=1, ji
                         counter = 0
             else:
                 next_state, reward, done = env_step(eval_env, reflex, action, reflex_frames, frame_skip)
-                counter += response_rate
 
             avg_reward += reward
             state = next_state
