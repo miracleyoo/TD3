@@ -277,7 +277,7 @@ if __name__ == "__main__":
     parser.add_argument("--policy_freq", default=2, type=int, help="Frequency of delayed policy updates")
     parser.add_argument("--save_model", action="store_true", help="Save model and optimizer parameters")
     parser.add_argument("--load_model", default="", help="Model load file name, `` doesn't load, `default` uses file_name")
-    parser.add_argument("--jit_duration", default=0.04, type=float, help="Duration in seconds for the horizontal force")
+    parser.add_argument("--jit_duration", default=0.02, type=float, help="Duration in seconds for the horizontal force")
     parser.add_argument("--g_ratio", default=0, type=float, help='Maximum horizontal force g ratio')
     parser.add_argument("--response_rate", default=0.04, type=float, help="Response time of the agent in seconds")
     parser.add_argument("--std_eval", action="store_true", help="Use standard evaluation or original evaluation policy")
