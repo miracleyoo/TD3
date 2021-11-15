@@ -19,6 +19,7 @@ def make_env(env_name, seed, time_change_factor, env_timestep, frameskip, delaye
     env.delayed = delayed_env
     env.action_space.seed(seed)
     env.model.opt.timestep = env_timestep
+    env.env.frame_skip = int(frameskip)
     env.frame_skip = int(frameskip)
     return env
 
@@ -41,6 +42,7 @@ def jitter_step_start(self, a, force, frames1, frames2, jit_frames):
     reward = 1.0
     self.do_simulation(a, int(frames1))
     self.model.opt.gravity[0] = force
+
     if frames2 < jit_frames:
         self.do_simulation(a, int(round(frames2)))
     else:
@@ -50,7 +52,6 @@ def jitter_step_start(self, a, force, frames1, frames2, jit_frames):
     ob = self._get_obs()
     notdone = np.isfinite(ob).all() and (np.abs(ob[1]) <= 0.2)
     done = not notdone
-
     return ob, reward, done, {}
 
 

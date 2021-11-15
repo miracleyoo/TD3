@@ -121,8 +121,8 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     episode_num = 0
     max_episode_timestep = env.env.env._max_episode_steps if delayed_env else env._max_episode_steps
 
+    counter = 0
     if jit_duration:
-        counter = 0
         disturb = random.randint(50, 100) * 0.04 * (1/catastrophe_frequency)
         print("==> Using Horizontal Jitter!")
 

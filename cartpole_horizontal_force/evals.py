@@ -91,11 +91,13 @@ def env_step(env, reflex, action, reflex_frames, frame_skip):
     return next_state, reward, done
 
 def eval_policy_ori(policy, env_name, eval_episodes=10, time_change_factor=1, jit_duration=0, env_timestep=0.02, force=1,
-                    frame_skip=1, jit_frames=0, response_rate=0.04, delayed_env=False, reflex_frames=None):
+                    frame_skip=1, jit_frames=0, response_rate=0.04, delayed_env=False, reflex_frames=None, vertical_gravity=None):
     print("==> Start standard evaluation...")
 
     eval_env = make_env(env_name, 100, time_change_factor,
                         env_timestep, frame_skip, delayed_env)
+    if vertical_gravity is not None:
+        eval_env.model.opt.gravity[2] = vertical_gravity
 
     avg_reward = 0.
 

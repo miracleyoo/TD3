@@ -23,7 +23,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
           expl_noise=0.1, batch_size=256, discount=0.99, tau=0.005, policy_freq=2, policy_noise=2, noise_clip=0.5,
           save_model=False, load_model="", jit_duration=0.02, gravity=1, response_rate=0.04, std_eval=False):
 
-    g = gravity * 9.81
+    g = gravity * -9.81
     env_name = 'InvertedPendulum-v2'
     eval_policy = eval_policy_std if std_eval else eval_policy_ori
     arguments = [policy, 'gravity', env_name, seed, jit_duration, gravity, response_rate]
@@ -53,7 +53,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     # Used to reset the max episode number to guarantee the actual max time is always the same.
     time_change_factor = (default_timestep * default_frame_skip) / (timestep * frame_skip)
     env = make_env(env_name, seed, time_change_factor, timestep, frame_skip, False)
-    env.model.opt.gravity[1] = g
+    env.model.opt.gravity[2] = g
     print('time change factor', time_change_factor)
     # Set seeds
     torch.manual_seed(seed)
@@ -99,7 +99,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     # Evaluate untrained policy
     evaluations = [eval_policy(policy, env_name, eval_episodes=10, time_change_factor=time_change_factor,
                                jit_duration=0, env_timestep=timestep, force=0, frame_skip=frame_skip,
-                               jit_frames=0, delayed_env=False)]
+                               jit_frames=0, delayed_env=False, vertical_gravity=g)]
 
     state, done = env.reset(), False
     episode_reward = 0
@@ -149,7 +149,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
             evaluations.append(
                 eval_policy(policy, env_name, eval_episodes=10, time_change_factor=time_change_factor,
                             jit_duration=0, env_timestep=timestep, force=0, frame_skip=frame_skip,
-                            jit_frames=0, delayed_env=False))
+                            jit_frames=0, delayed_env=False, vertical_gravity=g))
             np.save(f"./results/{file_name}", evaluations)
             # if save_model:
             #     policy.save(f"./models/{file_name}_{t}")
