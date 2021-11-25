@@ -19,8 +19,12 @@ def make_env(env_name, seed, time_change_factor, env_timestep, frameskip, delaye
     env.delayed = delayed_env
     env.action_space.seed(seed)
     env.model.opt.timestep = env_timestep
+
+    # env.env.env.frame_skip = int(frameskip)
     env.env.frame_skip = int(frameskip)
     env.frame_skip = int(frameskip)
+
+
     return env
 
 

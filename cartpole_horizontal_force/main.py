@@ -141,12 +141,12 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
         # Perform action
         if jit_duration:
-            if not jittering and round(disturb - counter, 2) >= response_rate:  # Not during the frames when jitter force keeps existing
+            if not jittering and round(disturb - counter, 3) >= response_rate:  # Not during the frames when jitter force keeps existing
                 next_state, reward, done, _ = env.step(action)
                 counter += response_rate
 
                 # print(next_state)
-            elif not jittering and round(disturb - counter, 2) < response_rate:
+            elif not jittering and round(disturb - counter, 3) < response_rate:
                 jitter_force = np.random.random() * hori_force * (2 * (np.random.random() > 0.5) - 1)  # Jitter force strength w/ direction
                 next_state, reward, done, _ = env.jitter_step_start(action, jitter_force, (disturb - counter)/timestep, frame_skip - ((disturb - counter)/timestep), jit_frames)
                 jittered_frames = frame_skip - ((disturb - counter)/timestep)
@@ -188,7 +188,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
         state = next_state
         episode_reward += reward
-        counter = round(counter, 2)
+        counter = round(counter, 3)
 
         # Train agent after collecting sufficient data
         if t >= start_timesteps:

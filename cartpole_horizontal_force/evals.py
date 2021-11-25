@@ -118,7 +118,7 @@ def eval_policy_ori(policy, env_name, eval_episodes=10, time_change_factor=1, ji
 
 
             if jit_duration:
-                if not jittering and round(disturb - counter, 2) >= response_rate:  # Not during the frames when jitter force keeps existing
+                if not jittering and round(disturb - counter, 3) >= response_rate:  # Not during the frames when jitter force keeps existing
                     next_state, reward, done = env_step(eval_env, reflex, action, reflex_frames, frame_skip)
                     counter += response_rate
                     # print(next_state)
@@ -226,10 +226,10 @@ def eval_policy_increasing_force(policy, env_name, eval_episodes=10, time_change
             else:
                 reflex, action = policy.select_action(state)
             # Perform action
-            if not jittering and round(disturb - counter, 2) >= response_rate:  # Not during the frames when jitter force keeps existing
+            if not jittering and round(disturb - counter, 3) >= response_rate:  # Not during the frames when jitter force keeps existing
                 next_state, reward, done = env_step(eval_env, reflex, action, reflex_frames, frame_skip)
                 counter += response_rate
-            elif not jittering and round(disturb - counter, 2) < response_rate:
+            elif not jittering and round(disturb - counter, 3) < response_rate:
                 jitter_force = force * 9.81 * (2 * (np.random.random() > 0.5) - 1)  # Jitter force strength w/ direction
 
                 frames_simulated = 0
@@ -293,7 +293,7 @@ def eval_policy_increasing_force(policy, env_name, eval_episodes=10, time_change
             avg_angle += abs(next_state[1])
             steps += 1
             state = next_state
-            counter = round(counter, 2)
+            counter = round(counter, 3)
             if jit_duration:
                 if counter == disturb:
                     jitter_force = force * 9.81 * (2 * (random.random() > 0.5) - 1)
