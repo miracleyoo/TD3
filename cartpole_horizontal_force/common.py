@@ -12,25 +12,27 @@ def make_env(env_name, seed, time_change_factor, env_timestep, frameskip, delaye
         env = RealTimeWrapper(env)
         env.env.env._max_episode_steps = 1000 * time_change_factor
     else:
-        env.env.jitter_step_end = types.MethodType(jitter_step_end, env.env)
-        env.env.jitter_step_start = types.MethodType(jitter_step_start, env.env)
+        if env_name == 'InvertedPendulum-v2':
+            env.env.jitter_step_end = types.MethodType(jitter_step_end_pendulum, env.env)
+            env.env.jitter_step_start = types.MethodType(jitter_step_start_pendulum, env.env)
+        elif env_name == 'HalfCheetah-v2':
+            env.env.jitter_step_end = types.MethodType(jitter_step_end_cheetah, env.env)
+            env.env.jitter_step_start = types.MethodType(jitter_step_start_pendulum, env.env)
         env._max_episode_steps = 1000 * time_change_factor
     env.seed(seed)
     env.delayed = delayed_env
     env.action_space.seed(seed)
     env.model.opt.timestep = env_timestep
-
     # env.env.env.frame_skip = int(frameskip)
     env.env.frame_skip = int(frameskip)
     env.frame_skip = int(frameskip)
-
 
     return env
 
 
 # The alternative step function when some frames of a step are under the
 # jitter force while others are not
-def jitter_step_end(self, a, force, frames1, frames2):
+def jitter_step_end_pendulum(self, a, force, frames1, frames2):
     self.model.opt.gravity[0] = force
     reward = 1.0
     self.do_simulation(a, int(round(frames1)))
@@ -42,7 +44,7 @@ def jitter_step_end(self, a, force, frames1, frames2):
     return ob, reward, done, {}
 
 
-def jitter_step_start(self, a, force, frames1, frames2, jit_frames):
+def jitter_step_start_pendulum(self, a, force, frames1, frames2, jit_frames):
     reward = 1.0
     self.do_simulation(a, int(frames1))
     self.model.opt.gravity[0] = force
@@ -58,8 +60,49 @@ def jitter_step_start(self, a, force, frames1, frames2, jit_frames):
     done = not notdone
     return ob, reward, done, {}
 
+# The alternative step function when some frames of a step are under the
+# jitter force while others are not
+def jitter_step_end_cheetah(self, a, force, frames1, frames2):
+    xposbefore = self.sim.data.qpos[0]
+    self.model.opt.gravity[0] = force
+    self.do_simulation(a, int(round(frames1)))
+    self.model.opt.gravity[0] = 0 # force # 0 here? frames1 are with force while frames2 are supposed not.
+    self.do_simulation(a, int(round(frames2)))
+    xposafter = self.sim.data.qpos[0]
+    ob = self._get_obs()
+    reward_ctrl = -0.1 * np.square(a).sum()
+    reward_run = (xposafter - xposbefore) / self.dt
+    reward = reward_ctrl + reward_run
+    done = False
+    return ob, reward, done, dict(reward_run=reward_run, reward_ctrl=reward_ctrl)
+
+
+def jitter_step_start_cheetah(self, a, force, frames1, frames2, jit_frames):
+    xposbefore = self.sim.data.qpos[0]
+    self.do_simulation(a, int(frames1))
+    self.model.opt.gravity[0] = force
+
+    if frames2 < jit_frames:
+        self.do_simulation(a, int(round(frames2)))
+    else:
+        self.do_simulation(a, int(round(jit_frames)))
+        self.model.opt.gravity[0] = 0
+        self.do_simulation(a, int(round(frames2 - jit_frames)))
+    xposafter = self.sim.data.qpos[0]
+    ob = self._get_obs()
+    reward_ctrl = -0.1 * np.square(a).sum()
+    reward_run = (xposafter - xposbefore) / self.dt
+    reward = reward_ctrl + reward_run
+    done = False
+    return ob, reward, done, dict(reward_run=reward_run, reward_ctrl=reward_ctrl)
+
+
+
+
+
 
 class RealTimeWrapper(gym.Wrapper):
+    # todo implement for other environments
     def __init__(self, env):
         super().__init__(env)
         self.observation_space = gym.spaces.Tuple((env.observation_space, env.action_space))
