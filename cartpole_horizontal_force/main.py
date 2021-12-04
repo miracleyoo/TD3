@@ -254,7 +254,7 @@ if __name__ == "__main__":
     parser.add_argument("--std_eval", action="store_true", help="Use standard evaluation or original evaluation policy")
     parser.add_argument("--catastrophe_frequency", default=1.0, type=float, help="Modify how often to apply catastrophe")
     parser.add_argument("--delayed_env", action="store_true", help="Delay the environment by 1 step")
-    parser.add_argument("--neurons", default=256, help='number of neurons in hidden layer')
+    parser.add_argument("--neurons", default=256, type=int, help='number of neurons in hidden layer')
 
 
     args = parser.parse_args()
