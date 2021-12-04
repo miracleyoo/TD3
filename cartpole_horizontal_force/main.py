@@ -22,11 +22,11 @@ default_frame_skip = 2
 def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timesteps=1e5,
           expl_noise=0.1, batch_size=256, discount=0.99, tau=0.005, policy_freq=2, policy_noise=2, noise_clip=0.5,
           save_model=False, load_model="", jit_duration=0.02, g_ratio=1, response_rate=0.04, std_eval=False,
-          catastrophe_frequency=1, delayed_env=False, env_name='InvertedPendulum-v2'):
+          catastrophe_frequency=1, delayed_env=False, env_name='InvertedPendulum-v2', neurons=256):
 
     hori_force = g_ratio * 9.81
     eval_policy = eval_policy_std if std_eval else eval_policy_ori
-    arguments = [policy, env_name, seed, jit_duration, g_ratio, response_rate, catastrophe_frequency, delayed_env]
+    arguments = [policy, env_name, seed, jit_duration, g_ratio, response_rate, catastrophe_frequency, delayed_env, neurons]
     file_name = '_'.join([str(x) for x in arguments])
     print("---------------------------------------")
     print(f"Policy: {policy}, Env: {env_name}, Seed: {seed}")
@@ -85,7 +85,8 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         "tau": tau,
         "observation_space": env.observation_space,
         "delayed_env": delayed_env,
-        "reflex": False
+        "reflex": False,
+        "neurons": neurons
     }
 
     # Initialize policy
@@ -253,6 +254,7 @@ if __name__ == "__main__":
     parser.add_argument("--std_eval", action="store_true", help="Use standard evaluation or original evaluation policy")
     parser.add_argument("--catastrophe_frequency", default=1.0, type=float, help="Modify how often to apply catastrophe")
     parser.add_argument("--delayed_env", action="store_true", help="Delay the environment by 1 step")
+    parser.add_argument("--neurons", default=256, help='number of neurons in hidden layer')
 
 
     args = parser.parse_args()
