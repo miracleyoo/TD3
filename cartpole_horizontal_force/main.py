@@ -122,6 +122,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     max_episode_timestep = env.env.env._max_episode_steps if delayed_env else env._max_episode_steps
 
     counter = 0
+    best_performance = 0
     if jit_duration:
         disturb = random.randint(50, 100) * 0.04 * (1/catastrophe_frequency)
         print("==> Using Horizontal Jitter!")
@@ -209,13 +210,17 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
         # Evaluate episode
         if (t + 1) % eval_freq == 0:
-            evaluations.append(
-                eval_policy(policy, env_name, eval_episodes=10, time_change_factor=time_change_factor,
+
+            avg_reward = eval_policy(policy, env_name, eval_episodes=10, time_change_factor=time_change_factor,
                             jit_duration=jit_duration, env_timestep=timestep, force=hori_force, frame_skip=frame_skip,
-                            jit_frames=jit_frames, delayed_env=delayed_env))
+                            jit_frames=jit_frames, delayed_env=delayed_env)
+            evaluations.append(avg_reward)
             np.save(f"./results/{file_name}", evaluations)
-            # if save_model:
-            #     policy.save(f"./models/{file_name}_{t}")
+
+            if best_performance < avg_reward:
+                best_performance = avg_reward
+                if save_model:
+                    policy.save(f"./models/{file_name}_best")
 
         if jit_duration:
             if counter == disturb:  # Execute adding jitter horizontal force here

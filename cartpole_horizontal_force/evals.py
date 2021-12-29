@@ -94,8 +94,7 @@ def eval_policy_ori(policy, env_name, eval_episodes=10, time_change_factor=1, ji
                     frame_skip=1, jit_frames=0, response_rate=0.04, delayed_env=False, reflex_frames=None, vertical_gravity=None):
     print("==> Start standard evaluation...")
 
-    eval_env = make_env(env_name, 100, time_change_factor,
-                        env_timestep, frame_skip, delayed_env)
+    eval_env = make_env(env_name, 100, time_change_factor, env_timestep, frame_skip, delayed_env)
     if vertical_gravity is not None:
         eval_env.model.opt.gravity[2] = vertical_gravity
 
@@ -115,7 +114,6 @@ def eval_policy_ori(policy, env_name, eval_episodes=10, time_change_factor=1, ji
             else:
                 reflex, action = policy.select_action(state)
             # Perform action
-
 
             if jit_duration:
                 if not jittering and round(disturb - counter, 3) >= response_rate:  # Not during the frames when jitter force keeps existing
@@ -167,10 +165,10 @@ def eval_policy_ori(policy, env_name, eval_episodes=10, time_change_factor=1, ji
                     jittered_frames += frame_skip
                     counter += response_rate
                     if jittered_frames == jit_frames:
-                        jittering = False
-                        disturb = random.randint(50, 100) * 0.04
-                        eval_env.model.opt.gravity[0] = 0
-                        counter = 0
+                            jittering = False
+                            disturb = random.randint(50, 100) * 0.04
+                            eval_env.model.opt.gravity[0] = 0
+                            counter = 0
             else:
                 next_state, reward, done = env_step(eval_env, reflex, action, reflex_frames, frame_skip)
 
