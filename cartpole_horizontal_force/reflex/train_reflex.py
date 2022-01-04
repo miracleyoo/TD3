@@ -41,15 +41,15 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     if save_model and not os.path.exists("./models"):
         os.makedirs("./models")
 
-    if response_rate % default_timestep == 0:
+    if reflex_response_rate % default_timestep == 0:
         frame_skip = response_rate / default_timestep
         timestep = default_timestep
-    elif jit_duration < response_rate:
+    elif jit_duration < reflex_response_rate:
         timestep = jit_duration
         frame_skip = response_rate / timestep
     else:
-        timestep = response_rate
-        frame_skip = 1
+        timestep = reflex_response_rate
+        frame_skip = response_rate / timestep
 
     jit_frames = 0  # How many frames the horizontal jitter force lasts each time
     if jit_duration:
