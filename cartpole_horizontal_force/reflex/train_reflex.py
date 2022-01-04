@@ -1,5 +1,5 @@
 import sys
-sys.path.append('../')
+sys.path.append('../../')
 
 import DDPG
 import OurDDPG
@@ -122,11 +122,12 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     episode_num = 0
 
     if jit_duration:
-        counter = 0
         disturb = random.randint(50, 100) * 0.04 * (1/catastrophe_frequency)
         print("==> Using Horizontal Jitter!")
 
     jittering = False
+    best_performance = 0
+    counter = 0
     for t in range(int(max_timesteps)):
         episode_timesteps += 1
 
@@ -148,12 +149,12 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
         # Perform action
         if jit_duration:
-            if not jittering and round(disturb - counter, 2) >= response_rate:  # Not during the frames when jitter force keeps existing
+            if not jittering and round(disturb - counter, 3) >= response_rate:  # Not during the frames when jitter force keeps existing
                 next_state, reward, done = env_step(env, reflex, action, reflex_frames, frame_skip)
                 counter += response_rate
 
                 # print(next_state)
-            elif not jittering and round(disturb - counter, 2) < response_rate:
+            elif not jittering and round(disturb - counter, 3) < response_rate:
                 jitter_force = np.random.random() * hori_force * (2 * (np.random.random() > 0.5) - 1)  # Jitter force strength w/ direction
                 frames_simulated = 0
                 force_frames_simulated = 0
@@ -215,7 +216,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
         state = next_state
         episode_reward += reward
-        counter = round(counter, 2)
+        counter = round(counter, 3)
 
         # Train agent after collecting sufficient data
         if t >= start_timesteps:
@@ -239,13 +240,15 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
         # Evaluate episode
         if (t + 1) % eval_freq == 0:
-            evaluations.append(
-                eval_policy(policy, env_name, eval_episodes=10, time_change_factor=time_change_factor,
+            avg_reward = eval_policy(policy, env_name, eval_episodes=10, time_change_factor=time_change_factor,
                             jit_duration=jit_duration, env_timestep=timestep, force=hori_force, frame_skip=frame_skip,
-                            jit_frames=jit_frames, delayed_env=delayed_env, reflex_frames=reflex_frames))
+                            jit_frames=jit_frames, delayed_env=delayed_env, reflex_frames=reflex_frames)
+            evaluations.append(avg_reward)
             np.save(f"./results/{file_name}", evaluations)
-            # if save_model:
-            #     policy.save(f"./models/{file_name}_{t}")
+            if best_performance < avg_reward:
+                best_performance = avg_reward
+                if save_model:
+                    policy.save(f"./models/{file_name}_best")
 
         if jit_duration:
             if counter == disturb:  # Execute adding jitter horizontal force here
@@ -282,6 +285,7 @@ if __name__ == "__main__":
     parser.add_argument("--response_rate", default=0.04, type=float, help="Response time of the agent in seconds")
     parser.add_argument("--std_eval", action="store_true", help="Use standard evaluation or original evaluation policy")
     parser.add_argument("--catastrophe_frequency", default=1.0, type=float, help="Modify how often to apply catastrophe")
+    parser.add_argument("--reflex_response_rate", default=0.02, type=float, help="reflex Response time of the agent in seconds")
 
 
     args = parser.parse_args()
