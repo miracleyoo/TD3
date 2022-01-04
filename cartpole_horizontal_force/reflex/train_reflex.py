@@ -11,6 +11,7 @@ import argparse
 import os
 import random
 
+sys.path.append('../')
 from common import make_env
 from evals import *
 
