@@ -12,10 +12,8 @@ def make_env(env_name, seed, time_change_factor, env_timestep, frameskip, delaye
         env = Float64ToFloat32(env)
         env = RealTimeWrapper(env)
         env.env.env._max_episode_steps = 1000 * time_change_factor
-        print(env.env.env.frame_skip)
         env.env.env.frame_skip = int(frameskip)
-        print(env.env.env.frame_skip)
-
+        env.env.env.env.frame_skip = int(frameskip)
     else:
         if env_name == 'InvertedPendulum-v2':
             env.env.jitter_step_end = types.MethodType(jitter_step_end_pendulum, env.env)
