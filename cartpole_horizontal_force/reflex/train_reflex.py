@@ -23,13 +23,13 @@ default_frame_skip = 2
 def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timesteps=1e5,
           expl_noise=0.1, batch_size=256, discount=0.99, tau=0.005, policy_freq=2, policy_noise=2, noise_clip=0.5,
           save_model=False, load_model="", jit_duration=0.02, g_ratio=1, response_rate=0.08, std_eval=False,
-          catastrophe_frequency=1, reflex_response_rate=0.02):
+          catastrophe_frequency=1, reflex_response_rate=0.02, reflex_threshold=0.15):
 
     delayed_env = True
     hori_force = g_ratio * 9.81
     env_name = 'InvertedPendulum-v2'
     eval_policy = eval_policy_std if std_eval else eval_policy_ori
-    arguments = [policy, 'reflex', env_name, seed, jit_duration, g_ratio, response_rate, catastrophe_frequency, reflex_response_rate]
+    arguments = [policy, 'reflex', env_name, seed, jit_duration, g_ratio, response_rate, catastrophe_frequency, reflex_response_rate, reflex_threshold]
     file_name = '_'.join([str(x) for x in arguments])
     print("---------------------------------------")
     print(f"Policy: {policy}, Env: {env_name}, Seed: {seed}")
@@ -91,7 +91,8 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         "tau": tau,
         "observation_space": env.observation_space,
         "delayed_env": delayed_env,
-        "reflex": True
+        "reflex": True,
+        "threshold": reflex_threshold
     }
 
     # Initialize policy
@@ -159,21 +160,21 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
                 jitter_force = np.random.random() * hori_force * (2 * (np.random.random() > 0.5) - 1)  # Jitter force strength w/ direction
                 frames_simulated = 0
                 force_frames_simulated = 0
-                if reflex and (disturb - counter) / timestep >= reflex_frames:
+                if reflex and round(disturb - counter, 3) / timestep >= reflex_frames:
                     next_state, reward, done, _ = env.jitter_step_end(reflex, 0, reflex_frames, 0)
                     frames_simulated += reflex_frames
-                elif reflex and (disturb - counter) / timestep < reflex_frames:
+                elif reflex and round(disturb - counter, 3) / timestep < reflex_frames:
                     next_state, reward, done, _ = env.jitter_step_end(reflex, 0,
-                                                                           (disturb - counter) / timestep, 0)
+                                                                           round(disturb - counter, 3) / timestep, 0)
                     next_state, reward, done, _ = env.jitter_step_end(reflex, jitter_force, reflex_frames - (
-                                (disturb - counter) / timestep), 0)
+                                round(disturb - counter, 3) / timestep), 0)
                     frames_simulated += reflex_frames
-                    force_frames_simulated += reflex_frames - ((disturb - counter) / timestep)
+                    force_frames_simulated += reflex_frames - (round(disturb - counter, 3) / timestep)
 
                 next_state, reward, done, _ = env.jitter_step_start(action, jitter_force, max(
-                    ((disturb - counter) / timestep) - frames_simulated, 0), (frame_skip - ((disturb - counter) / timestep)) - frames_simulated, jit_frames - force_frames_simulated)
+                    (round(disturb - counter, 3) / timestep) - frames_simulated, 0), (frame_skip - max((round(disturb - counter, 3) / timestep), frames_simulated)), jit_frames - force_frames_simulated)
 
-                jittered_frames = frame_skip - ((disturb - counter)/timestep)
+                jittered_frames = frame_skip - (round(disturb - counter, 3)/timestep)
                 if jittered_frames >= jit_frames:
                     jittered_frames = 0
                     jittering = False
@@ -187,12 +188,16 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
             elif jit_frames - jittered_frames < frame_skip:  # Jitter force will dispear from now!
                 frames_simulated = 0
-                if reflex:
+                if reflex and reflex_frames <= jit_frames - jittered_frames:
                     next_state, reward, done, _ = env.jitter_step_end(reflex, jitter_force, reflex_frames, 0)
                     frames_simulated += reflex_frames
+                else:
+                    next_state, reward, done, _ = env.jitter_step_end(reflex, jitter_force, jit_frames - jittered_frames,
+                                                                      reflex_frames - jit_frames + jittered_frames)
+                    frames_simulated += reflex_frames
                 next_state, reward, done, _ = env.jitter_step_end(
-                    action, jitter_force, jit_frames - jittered_frames - frames_simulated,
-                                          frame_skip - (jit_frames - jittered_frames))
+                    action, jitter_force, max(jit_frames - jittered_frames - frames_simulated, 0),
+                                          frame_skip - max((jit_frames - jittered_frames), frames_simulated))
                 jittering = False  # Stop jittering now
                 disturb = random.randint(50, 100) * 0.04 * (1/catastrophe_frequency) # Define the next jittering frame
                 env.model.opt.gravity[0] = 0
@@ -287,6 +292,7 @@ if __name__ == "__main__":
     parser.add_argument("--std_eval", action="store_true", help="Use standard evaluation or original evaluation policy")
     parser.add_argument("--catastrophe_frequency", default=1.0, type=float, help="Modify how often to apply catastrophe")
     parser.add_argument("--reflex_response_rate", default=0.02, type=float, help="reflex Response time of the agent in seconds")
+    parser.add_argument("--reflex_threhold", default=0.15, type=float, help="Threhsold at which the reflex activates")
 
 
     args = parser.parse_args()

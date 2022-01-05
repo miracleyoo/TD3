@@ -47,7 +47,7 @@ class DelayedActor(nn.Module):
 
 
 class DelayedQuickActor(nn.Module):
-    def __init__(self, observation_space, action_dim, max_action):
+    def __init__(self, observation_space, action_dim, max_action, threshold=0.15):
         super(DelayedQuickActor, self).__init__()
 
         input_dim = sum(s.shape[0] for s in observation_space)
@@ -57,13 +57,13 @@ class DelayedQuickActor(nn.Module):
         self.reflex_detector.weight.data = torch.zeros(self.reflex_detector.weight.shape)
         self.reflex_detector.weight.data[0, 1] = 1
         self.reflex_detector.weight.data[1, 1] = -1
-        self.reflex_detector.bias.data = torch.ones(self.reflex_detector.bias.data.shape) * -0.15
+        self.reflex_detector.bias.data = torch.ones(self.reflex_detector.bias.data.shape) * threshold * -1
 
         self.reflex = nn.Linear(2, 1)
         self.reflex.weight.requires_grad = False
         self.reflex.bias.requires_grad = False
-        self.reflex.weight.data[0, 0] = 20
-        self.reflex.weight.data[0, 1] = -20
+        self.reflex.weight.data[0, 0] = 1 / (0.20 - threshold)
+        self.reflex.weight.data[0, 1] = -1 / (0.20 - threshold)
         self.reflex.bias.data[0] = 0
 
         self.l1 = nn.Linear(input_dim, 256)
@@ -167,14 +167,15 @@ class TD3(object):
             policy_freq=2,
             delayed_env=False,
             reflex=False,
-            neurons=256
+            neurons=256,
+            threshold=0.15
     ):
 
         self.delayed_env = delayed_env
         self.reflex = reflex
 
         if reflex:
-            self.actor = DelayedQuickActor(observation_space, action_dim, max_action).to(device)
+            self.actor = DelayedQuickActor(observation_space, action_dim, max_action, threshold).to(device)
             self.critic = DelayedCritic(observation_space, action_dim).to(device)
         elif self.delayed_env:
             self.actor = DelayedActor(observation_space, action_dim, max_action).to(device)

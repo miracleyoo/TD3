@@ -6,7 +6,10 @@ do
     do
         for response_rate in 0.04
         do
-            sbatch gpu.sh $seed $g_force $response_rate
+            for reflex_threhold in 0.15
+            do
+                sbatch gpu.sh $seed $g_force $response_rate $reflex_threhold
+            done
         done
     done
 done
