@@ -292,7 +292,7 @@ if __name__ == "__main__":
     parser.add_argument("--std_eval", action="store_true", help="Use standard evaluation or original evaluation policy")
     parser.add_argument("--catastrophe_frequency", default=1.0, type=float, help="Modify how often to apply catastrophe")
     parser.add_argument("--reflex_response_rate", default=0.02, type=float, help="reflex Response time of the agent in seconds")
-    parser.add_argument("--reflex_threhold", default=0.15, type=float, help="Threhsold at which the reflex activates")
+    parser.add_argument("--reflex_threshold", default=0.15, type=float, help="Threhsold at which the reflex activates")
 
 
     args = parser.parse_args()
