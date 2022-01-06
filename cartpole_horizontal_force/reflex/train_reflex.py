@@ -172,7 +172,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
                     force_frames_simulated += reflex_frames - (round(disturb - counter, 3) / timestep)
 
                 next_state, reward, done, _ = env.jitter_step_start(action, jitter_force, max(
-                    (round(disturb - counter, 3) / timestep) - frames_simulated, 0), (frame_skip - max((round(disturb - counter, 3) / timestep), frames_simulated)), jit_frames - force_frames_simulated)
+                    (round(disturb - counter, 3) / timestep) - frames_simulated, 0), frame_skip - max((round(disturb - counter, 3) / timestep), frames_simulated), jit_frames - force_frames_simulated)
 
                 jittered_frames = frame_skip - (round(disturb - counter, 3)/timestep)
                 if jittered_frames >= jit_frames:
@@ -188,13 +188,14 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
             elif jit_frames - jittered_frames < frame_skip:  # Jitter force will dispear from now!
                 frames_simulated = 0
-                if reflex and reflex_frames <= jit_frames - jittered_frames:
-                    next_state, reward, done, _ = env.jitter_step_end(reflex, jitter_force, reflex_frames, 0)
+                if reflex:
+                    if reflex_frames <= jit_frames - jittered_frames:
+                        next_state, reward, done, _ = env.jitter_step_end(reflex, jitter_force, reflex_frames, 0)
+                    else:
+                        next_state, reward, done, _ = env.jitter_step_end(reflex, jitter_force, jit_frames - jittered_frames,
+                                                                          reflex_frames - jit_frames + jittered_frames)
                     frames_simulated += reflex_frames
-                else:
-                    next_state, reward, done, _ = env.jitter_step_end(reflex, jitter_force, jit_frames - jittered_frames,
-                                                                      reflex_frames - jit_frames + jittered_frames)
-                    frames_simulated += reflex_frames
+
                 next_state, reward, done, _ = env.jitter_step_end(
                     action, jitter_force, max(jit_frames - jittered_frames - frames_simulated, 0),
                                           frame_skip - max((jit_frames - jittered_frames), frames_simulated))

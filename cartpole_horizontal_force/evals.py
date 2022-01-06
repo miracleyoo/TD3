@@ -149,13 +149,13 @@ def eval_policy_ori(policy, env_name, eval_episodes=10, time_change_factor=1, ji
 
                 elif jit_frames - jittered_frames < frame_skip:  # Jitter force will dispear from now!
                     frames_simulated = 0
-                    if reflex and reflex_frames <= jit_frames - jittered_frames:
-                        next_state, reward, done, _ = eval_env.jitter_step_end(reflex, jitter_force, reflex_frames, 0)
-                        frames_simulated += reflex_frames
-                    else:
-                        next_state, reward, done, _ = eval_env.jitter_step_end(reflex, jitter_force,
-                                                                          jit_frames - jittered_frames,
-                                                                          reflex_frames - jit_frames + jittered_frames)
+                    if reflex:
+                        if reflex_frames <= jit_frames - jittered_frames:
+                            next_state, reward, done, _ = eval_env.jitter_step_end(reflex, jitter_force, reflex_frames, 0)
+                        else:
+                            next_state, reward, done, _ = eval_env.jitter_step_end(reflex, jitter_force,
+                                                                              jit_frames - jittered_frames,
+                                                                              reflex_frames - jit_frames + jittered_frames)
                         frames_simulated += reflex_frames
 
                     next_state, reward, done, _ = eval_env.jitter_step_end(
