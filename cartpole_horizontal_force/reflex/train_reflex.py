@@ -12,7 +12,7 @@ import os
 import random
 
 sys.path.append('../')
-from common import make_env
+from common import make_env, get_frame_skip_and_timestep, perform_action, random_jitter_force, random_disturb
 from evals import *
 
 default_timestep = 0.02
@@ -26,7 +26,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
           catastrophe_frequency=1, reflex_response_rate=0.02, reflex_threshold=0.15):
 
     delayed_env = True
-    hori_force = g_ratio * 9.81
+    max_force = g_ratio * 9.81
     env_name = 'InvertedPendulum-v2'
     eval_policy = eval_policy_std if std_eval else eval_policy_ori
     arguments = [policy, 'reflex', env_name, seed, jit_duration, g_ratio, response_rate, catastrophe_frequency, reflex_response_rate, reflex_threshold]
@@ -41,24 +41,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     if save_model and not os.path.exists("./models"):
         os.makedirs("./models")
 
-    if reflex_response_rate % default_timestep == 0:
-        frame_skip = response_rate / default_timestep
-        timestep = default_timestep
-    elif jit_duration < reflex_response_rate:
-        timestep = jit_duration
-        frame_skip = response_rate / timestep
-    else:
-        timestep = reflex_response_rate
-        frame_skip = response_rate / timestep
-
-    jit_frames = 0  # How many frames the horizontal jitter force lasts each time
-    if jit_duration:
-        if jit_duration % timestep == 0:
-            jit_frames = int(jit_duration / timestep)
-        else:
-            raise ValueError(
-                "jit_duration should be a multiple of the timestep: " + str(timestep))
-
+    frame_skip, timestep, jit_frames = get_frame_skip_and_timestep(jit_duration, response_rate, reflex_response_rate)
     reflex_frames = int(reflex_response_rate/timestep)
 
     print('timestep:', timestep)  # How long does it take before two frames
@@ -115,19 +98,18 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
     # Evaluate untrained policy
     evaluations = [eval_policy(policy, env_name, eval_episodes=10, time_change_factor=time_change_factor,
-                               jit_duration=jit_duration, env_timestep=timestep, force=hori_force, frame_skip=frame_skip,
+                               jit_duration=jit_duration, env_timestep=timestep, max_force=max_force, frame_skip=frame_skip,
                                jit_frames=jit_frames, delayed_env=delayed_env, reflex_frames=reflex_frames)]
 
     state, done = env.reset(), False
     episode_reward = 0
     episode_timesteps = 0
     episode_num = 0
-
-    if jit_duration:
-        disturb = random.randint(50, 100) * 0.04 * (1/catastrophe_frequency)
-        print("==> Using Horizontal Jitter!")
+    jittered_frames = 0
+    disturb = round(random.randint(50, 100) * 0.04 * (1/catastrophe_frequency), 3)
 
     jittering = False
+    jitter_force = 0
     best_performance = 0
     counter = 0
     for t in range(int(max_timesteps)):
@@ -150,72 +132,8 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
                 action = (a + np.random.normal(0, max_action * expl_noise, size=action_dim)).clip(-max_action, max_action)
 
         # Perform action
-        if jit_duration:
-            if not jittering and round(disturb - counter, 3) >= response_rate:  # Not during the frames when jitter force keeps existing
-                next_state, reward, done = env_step(env, reflex, action, reflex_frames, frame_skip)
-                counter += response_rate
+        jittering, disturb, counter, jittered_frames, jitter_force, next_state, reward, done = perform_action(jittering, disturb, counter, response_rate, env, reflex, action, reflex_frames, frame_skip, random_jitter_force, max_force, timestep, jit_frames, jittered_frames, random_disturb, jitter_force, catastrophe_frequency)
 
-                # print(next_state)
-            elif not jittering and round(disturb - counter, 3) < response_rate:
-                jitter_force = np.random.random() * hori_force * (2 * (np.random.random() > 0.5) - 1)  # Jitter force strength w/ direction
-                frames_simulated = 0
-                force_frames_simulated = 0
-                if reflex and round(disturb - counter, 3) / timestep >= reflex_frames:
-                    next_state, reward, done, _ = env.jitter_step_end(reflex, 0, reflex_frames, 0)
-                    frames_simulated += reflex_frames
-                elif reflex and round(disturb - counter, 3) / timestep < reflex_frames:
-                    next_state, reward, done, _ = env.jitter_step_end(reflex, 0,
-                                                                           round(disturb - counter, 3) / timestep, 0)
-                    next_state, reward, done, _ = env.jitter_step_end(reflex, jitter_force, reflex_frames - (
-                                round(disturb - counter, 3) / timestep), 0)
-                    frames_simulated += reflex_frames
-                    force_frames_simulated += reflex_frames - (round(disturb - counter, 3) / timestep)
-
-                next_state, reward, done, _ = env.jitter_step_start(action, jitter_force, max(
-                    (round(disturb - counter, 3) / timestep) - frames_simulated, 0), frame_skip - max((round(disturb - counter, 3) / timestep), frames_simulated), jit_frames - force_frames_simulated)
-
-                jittered_frames = frame_skip - (round(disturb - counter, 3)/timestep)
-                if jittered_frames >= jit_frames:
-                    jittered_frames = 0
-                    jittering = False
-                    env.model.opt.gravity[0] = 0
-                    counter = 0
-                    disturb = random.randint(50, 100) * 0.04 * (1 / catastrophe_frequency)
-                else:
-                    jittering = True
-                    env.model.opt.gravity[0] = jitter_force
-                    counter += response_rate
-
-            elif jit_frames - jittered_frames < frame_skip:  # Jitter force will dispear from now!
-                frames_simulated = 0
-                if reflex:
-                    if reflex_frames <= jit_frames - jittered_frames:
-                        next_state, reward, done, _ = env.jitter_step_end(reflex, jitter_force, reflex_frames, 0)
-                    else:
-                        next_state, reward, done, _ = env.jitter_step_end(reflex, jitter_force, jit_frames - jittered_frames,
-                                                                          reflex_frames - jit_frames + jittered_frames)
-                    frames_simulated += reflex_frames
-
-                next_state, reward, done, _ = env.jitter_step_end(
-                    action, jitter_force, max(jit_frames - jittered_frames - frames_simulated, 0),
-                                          frame_skip - max((jit_frames - jittered_frames), frames_simulated))
-                jittering = False  # Stop jittering now
-                disturb = random.randint(50, 100) * 0.04 * (1/catastrophe_frequency) # Define the next jittering frame
-                env.model.opt.gravity[0] = 0
-                jittered_frames = 0
-                counter = 0
-            else:  # Jitter force keeps existing now!
-                next_state, reward, done = env_step(env, reflex, action, reflex_frames, frame_skip)
-                jittered_frames += frame_skip
-                counter += response_rate
-                if jittered_frames == jit_frames:
-                    jittering = False
-                    disturb = random.randint(50, 100) * 0.04 * (1/catastrophe_frequency)
-                    env.model.opt.gravity[0] = 0
-                    counter = 0
-        else:
-            next_state, reward, done = env_step(env, reflex, action, reflex_frames, frame_skip)
-            counter += response_rate
         done_bool = float(done) if episode_timesteps < env.env.env._max_episode_steps else 0
 
         # Store data in replay buffer
@@ -238,18 +156,18 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
             episode_reward = 0
             episode_timesteps = 0
             episode_num += 1
-            if jit_duration:
-                counter = 0
-                env.model.opt.gravity[0] = 0
-                disturb = random.randint(50, 100) * 0.04 * (1 / catastrophe_frequency)
-                jittering = False
-                jittered_frames = 0
+            counter = 0
+            env.model.opt.gravity[0] = 0
+            disturb = round(random.randint(50, 100) * 0.04 * (1 / catastrophe_frequency), 3)
+            jittering = False
+            jittered_frames = 0
 
         # Evaluate episode
         if (t + 1) % eval_freq == 0:
             avg_reward = eval_policy(policy, env_name, eval_episodes=10, time_change_factor=time_change_factor,
-                            jit_duration=jit_duration, env_timestep=timestep, force=hori_force, frame_skip=frame_skip,
-                            jit_frames=jit_frames, delayed_env=delayed_env, reflex_frames=reflex_frames)
+                                     jit_duration=jit_duration, env_timestep=timestep, max_force=max_force,
+                                     frame_skip=frame_skip, jit_frames=jit_frames, delayed_env=delayed_env,
+                                     reflex_frames=reflex_frames)
             evaluations.append(avg_reward)
             np.save(f"./results/{file_name}", evaluations)
             if best_performance < avg_reward:
@@ -257,13 +175,12 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
                 if save_model:
                     policy.save(f"./models/{file_name}_best")
 
-        if jit_duration:
-            if counter == disturb:  # Execute adding jitter horizontal force here
-                jitter_force = np.random.random() * hori_force * \
-                    (2*(np.random.random() > 0.5)-1)  # Jitter force strength w/ direction
-                env.model.opt.gravity[0] = jitter_force
-                jittering = True
-                jittered_frames = 0
+        if counter == disturb:  # Execute adding jitter horizontal force here
+            jitter_force = np.random.random() * max_force * \
+                (2*(np.random.random() > 0.5)-1)  # Jitter force strength w/ direction
+            env.model.opt.gravity[0] = jitter_force
+            jittering = True
+            jittered_frames = 0
 
     if save_model:
         policy.save(f"./models/{file_name}_final")

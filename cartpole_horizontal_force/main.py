@@ -11,12 +11,11 @@ import argparse
 import os
 import random
 
-from common import make_env
+from common import make_env, create_folders, get_frame_skip_and_timestep, perform_action, random_jitter_force, random_disturb
 from evals import *
 
-default_timestep = 0.02
+default_timestep = 0.02 # for Inverted Pendulum-V2 todo: add for others
 default_frame_skip = 2
-
 
 # Main function of the policy. Model is trained and evaluated inside.
 def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timesteps=1e5,
@@ -24,36 +23,18 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
           save_model=False, load_model="", jit_duration=0.02, g_ratio=1, response_rate=0.04, std_eval=False,
           catastrophe_frequency=1, delayed_env=False, env_name='InvertedPendulum-v2', neurons=256):
 
-    hori_force = g_ratio * 9.81
+    max_force = g_ratio * 9.81
     eval_policy = eval_policy_std if std_eval else eval_policy_ori
     arguments = [policy, env_name, seed, jit_duration, g_ratio, response_rate, catastrophe_frequency, delayed_env, neurons]
     file_name = '_'.join([str(x) for x in arguments])
+
     print("---------------------------------------")
     print(f"Policy: {policy}, Env: {env_name}, Seed: {seed}")
     print("---------------------------------------")
 
-    if not os.path.exists("./results"):
-        os.makedirs("./results")
+    create_folders()
 
-    if save_model and not os.path.exists("./models"):
-        os.makedirs("./models")
-
-    if response_rate % default_timestep == 0:
-        frame_skip = response_rate / default_timestep
-        timestep = default_timestep
-    elif jit_duration < response_rate:
-        timestep = jit_duration
-        frame_skip = response_rate / timestep
-    else:
-        timestep = response_rate
-        frame_skip = 1
-    jit_frames = 0  # How many frames the horizontal jitter force lasts each time
-    if jit_duration:
-        if jit_duration % timestep == 0:
-            jit_frames = int(jit_duration / timestep)
-        else:
-            raise ValueError(
-                "jit_duration should be a multiple of the timestep: " + str(timestep))
+    frame_skip, timestep, jit_frames = get_frame_skip_and_timestep(jit_duration, response_rate)
 
     print('timestep:', timestep)  # How long does it take before two frames
     # How many frames to skip before return the state, 1 by default
@@ -112,22 +93,38 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
     # Evaluate untrained policy
     evaluations = [eval_policy(policy, env_name, eval_episodes=10, time_change_factor=time_change_factor,
-                               jit_duration=jit_duration, env_timestep=timestep, force=hori_force, frame_skip=frame_skip,
+                               jit_duration=jit_duration, env_timestep=timestep, max_force=max_force, frame_skip=frame_skip,
                                jit_frames=jit_frames, delayed_env=delayed_env)]
 
     state, done = env.reset(), False
     episode_reward = 0
     episode_timesteps = 0
     episode_num = 0
+    jittered_frames = 0
     max_episode_timestep = env.env.env._max_episode_steps if delayed_env else env._max_episode_steps
 
     counter = 0
     best_performance = 0
-    if jit_duration:
-        disturb = random.randint(50, 100) * 0.04 * (1/catastrophe_frequency)
-        print("==> Using Horizontal Jitter!")
+    disturb = round(random.randint(50, 100) * 0.04 * (1 / catastrophe_frequency), 3)
+    print("==> Using Horizontal Jitter!")
 
     jittering = False
+    jitter_force = 0
+
+    def stop_force():
+        nonlocal jittered_frames
+        nonlocal jittering
+        nonlocal env
+        nonlocal counter
+        nonlocal disturb
+
+        jittered_frames = 0
+        jittering = False
+        env.model.opt.gravity[0] = 0
+        counter = 0
+        disturb = round(random.randint(50, 100) * 0.04 * (1 / catastrophe_frequency), 3)
+
+
     for t in range(int(max_timesteps)):
         episode_timesteps += 1
 
@@ -141,47 +138,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
             ).clip(-max_action, max_action)
 
         # Perform action
-        if jit_duration:
-            if not jittering and round(disturb - counter, 3) >= response_rate:  # Not during the frames when jitter force keeps existing
-                next_state, reward, done, _ = env.step(action)
-                counter += response_rate
-
-                # print(next_state)
-            elif not jittering and round(disturb - counter, 3) < response_rate:
-                jitter_force = np.random.random() * hori_force * (2 * (np.random.random() > 0.5) - 1)  # Jitter force strength w/ direction
-                next_state, reward, done, _ = env.jitter_step_start(action, jitter_force, round(disturb - counter, 3)/timestep, frame_skip - (round(disturb - counter, 3)/timestep), jit_frames)
-                jittered_frames = frame_skip - (round(disturb - counter, 3)/timestep)
-                if jittered_frames >= jit_frames:
-                    jittered_frames = 0
-                    jittering = False
-                    env.model.opt.gravity[0] = 0
-                    counter = 0
-                    disturb = random.randint(50, 100) * 0.04 * (1 / catastrophe_frequency)
-                else:
-                    jittering = True
-                    env.model.opt.gravity[0] = jitter_force
-                    counter += response_rate
-
-
-            elif jit_frames - jittered_frames < frame_skip:  # Jitter force will dispear from now!
-                next_state, reward, done, _ = env.jitter_step_end(
-                    action, jitter_force, jit_frames - jittered_frames, frame_skip - (jit_frames - jittered_frames))
-                jittering = False  # Stop jittering now
-                disturb = random.randint(50, 100) * 0.04 * (1/catastrophe_frequency) # Define the next jittering frame
-                env.model.opt.gravity[0] = 0
-                counter = 0
-            else:  # Jitter force keeps existing now!
-                next_state, reward, done, _ = env.step(action)
-                jittered_frames += frame_skip
-                counter += response_rate
-                if jittered_frames == jit_frames:
-                    jittering = False
-                    disturb = random.randint(50, 100) * 0.04 * (1/catastrophe_frequency)
-                    env.model.opt.gravity[0] = 0
-                    counter = 0
-        else:
-            next_state, reward, done, _ = env.step(action)
-            counter += response_rate
+        jittering, disturb, counter, jittered_frames, jitter_force, next_state, reward, done = perform_action(jittering, disturb, counter, response_rate, env, False, action, 0, frame_skip, random_jitter_force, max_force, timestep, jit_frames, jittered_frames, random_disturb, jitter_force, catastrophe_frequency)
         done_bool = float(done) if episode_timesteps < max_episode_timestep else 0
 
         # Store data in replay buffer
@@ -204,19 +161,14 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
             episode_reward = 0
             episode_timesteps = 0
             episode_num += 1
-            if jit_duration:
-                counter = 0
-                env.model.opt.gravity[0] = 0
-                disturb = random.randint(50, 100) * 0.04 * (1 / catastrophe_frequency)
-                jittering = False
-                jittered_frames = 0
+            stop_force()
 
         # Evaluate episode
         if (t + 1) % eval_freq == 0:
 
             avg_reward = eval_policy(policy, env_name, eval_episodes=10, time_change_factor=time_change_factor,
-                            jit_duration=jit_duration, env_timestep=timestep, force=hori_force, frame_skip=frame_skip,
-                            jit_frames=jit_frames, delayed_env=delayed_env)
+                                     jit_duration=jit_duration, env_timestep=timestep, max_force=max_force,
+                                     frame_skip=frame_skip, jit_frames=jit_frames, delayed_env=delayed_env)
             evaluations.append(avg_reward)
             np.save(f"./results/{file_name}", evaluations)
 
@@ -225,13 +177,12 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
                 if save_model:
                     policy.save(f"./models/{file_name}_best")
 
-        if jit_duration:
-            if counter == disturb:  # Execute adding jitter horizontal force here
-                jitter_force = np.random.random() * hori_force * \
-                    (2*(np.random.random() > 0.5)-1)  # Jitter force strength w/ direction
-                env.model.opt.gravity[0] = jitter_force
-                jittering = True
-                jittered_frames = 0
+        if counter == disturb:  # Execute adding jitter horizontal force here
+            jitter_force = np.random.random() * max_force * \
+                (2*(np.random.random() > 0.5)-1)  # Jitter force strength w/ direction
+            env.model.opt.gravity[0] = jitter_force
+            jittering = True
+            jittered_frames = 0
 
     if save_model:
         policy.save(f"./models/{file_name}_final")
@@ -245,8 +196,8 @@ if __name__ == "__main__":
     parser.add_argument("--env_name", default="InvertedPendulum-v2", help="Environment name")
     parser.add_argument("--seed", default=0, type=int, help="Sets Gym, PyTorch and Numpy seeds")
     parser.add_argument("--start_timesteps", default=25e3, type=int, help="Time steps initial random policy is used")
-    parser.add_argument("--eval_freq", default=1e5, type=int, help="How often (time steps) we evaluate")
-    parser.add_argument("--max_timesteps", default=1e6, type=int, help="Max time steps to run environment")
+    parser.add_argument("--eval_freq", default=10000, type=int, help="How often (time steps) we evaluate")
+    parser.add_argument("--max_timesteps", default=400000, type=int, help="Max time steps to run environment")
     parser.add_argument("--expl_noise", default=0.1, help="Std of Gaussian exploration noise")
     parser.add_argument("--batch_size", default=256, type=int, help="Batch size for both actor and critic")
     parser.add_argument("--discount", default=0.99, help="Discount factor")
@@ -256,7 +207,7 @@ if __name__ == "__main__":
     parser.add_argument("--policy_freq", default=2, type=int, help="Frequency of delayed policy updates")
     parser.add_argument("--save_model", action="store_true", help="Save model and optimizer parameters")
     parser.add_argument("--load_model", default="", help="Model load file name, `` doesn't load, `default` uses file_name")
-    parser.add_argument("--jit_duration", default=0.0, type=float, help="Duration in seconds for the horizontal force")
+    parser.add_argument("--jit_duration", default=0.02, type=float, help="Duration in seconds for the horizontal force")
     parser.add_argument("--g_ratio", default=0, type=float, help='Maximum horizontal force g ratio')
     parser.add_argument("--response_rate", default=0.04, type=float, help="Response time of the agent in seconds")
     parser.add_argument("--std_eval", action="store_true", help="Use standard evaluation or original evaluation policy")
