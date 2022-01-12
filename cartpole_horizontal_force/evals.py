@@ -2,11 +2,11 @@ from common import make_env
 import numpy as np
 import random
 import sys
-from common import perform_action, random_disturb, random_jitter_force
+from common import perform_action, random_disturb, random_jitter_force, const_jitter_force, const_disturb_five
 sys.path.append('../')
 
 
-__all__ = ["eval_policy_std", "eval_policy_ori"]
+__all__ = ["eval_policy_std", "eval_policy_ori", "eval_policy_increasing_force"]
 
 
 # Standard evaluation function. A fixed evaluation routine will be executed to
@@ -113,14 +113,15 @@ def eval_policy_ori(policy, env_name, eval_episodes=10, time_change_factor=1, ji
                 reflex, action = policy.select_action(state)
             # Perform action
 
-            jittering, disturb, counter, jittered_frames, jitter_force, next_state, reward, done = perform_action(
+            jittering, disturb, counter, jittered_frames, jitter_force, max_force, next_state, reward, done = perform_action(
                 jittering, disturb, counter, response_rate, eval_env, reflex, action, reflex_frames, frame_skip, random_jitter_force,
                 max_force, env_timestep, jit_frames, jittered_frames, random_disturb, jitter_force, catastrophe_frequency)
 
+            counter = round(counter, 3)
             avg_reward += reward
             state = next_state
             if counter == disturb:
-                jitter_force = np.random.random() * max_force * (2*(random.random() > 0.5)-1)
+                jitter_force, _ = random_jitter_force(max_force)
                 eval_env.model.opt.gravity[0] = jitter_force
                 jittering = True
                 jittered_frames = 0
@@ -135,119 +136,69 @@ def eval_policy_ori(policy, env_name, eval_episodes=10, time_change_factor=1, ji
     return avg_reward
 
 
-def eval_policy_increasing_force(policy, env_name, eval_episodes=10, time_change_factor=1, jit_duration=0,
+def eval_policy_increasing_force(policy, env_name, eval_episodes=10, time_change_factor=1,
                                  env_timestep=0.02, frame_skip=1, jit_frames=0, response_rate=0.04, delayed_env=False,
                                  reflex_frames=None):
-    print("\n==> Start standard evaluation...")
-
-    eval_env = make_env(env_name, 100, time_change_factor,
-                        env_timestep, frame_skip, delayed_env)
-
+    eval_env = make_env(env_name, 100, time_change_factor, env_timestep, frame_skip, delayed_env)
     if delayed_env:
         eval_env.env.env._max_episode_steps = 100000
     else:
         eval_env._max_episode_steps = 100000
     avg_reward = 0.
     avg_angle = 0.
-    # Take the 1/10, 2/10, ... 10/10 of the max force for testing. Direction is alternate.
-    # Split the whole time period into 11 pieces to test the forces above.
-    # No force is added in the first time block.
-    steps = 0
+    actions = 0
 
+
+    t = 0
+    forces = []
+    force_times = []
     for _ in range(eval_episodes):
-        state, done = eval_env.reset(), False
         eval_env.model.opt.gravity[0] = 0
         counter = 0
         disturb = 5
+        force = 0.25 * 9.81
+        prev_action = None
+        jerk = 0
+        jittered_frames = 0
         jittering = False
-        force = 0.25
+        jitter_force = 0
         reflex = False
+        state, done = eval_env.reset(), False
+
         while not done:
             if not reflex_frames:
                 action = policy.select_action(state)
             else:
                 reflex, action = policy.select_action(state)
+
+            if reflex:
+                actions += 2
+            else:
+                actions += 1
             # Perform action
-            if not jittering and round(disturb - counter, 3) >= response_rate:  # Not during the frames when jitter force keeps existing
-                next_state, reward, done = env_step(eval_env, reflex, action, reflex_frames, frame_skip)
-                counter += response_rate
-            elif not jittering and round(disturb - counter, 3) < response_rate:
-                jitter_force = force * 9.81 * (2 * (np.random.random() > 0.5) - 1)  # Jitter force strength w/ direction
-
-                frames_simulated = 0
-                force_frames_simulated = 0
-                if reflex and (disturb - counter) / env_timestep >= reflex_frames:
-                    next_state, reward, done, _ = eval_env.jitter_step_end(reflex, 0, reflex_frames, 0)
-                    frames_simulated += reflex_frames
-                elif reflex and (disturb - counter) / env_timestep < reflex_frames:
-                    next_state, reward, done, _ = eval_env.jitter_step_end(reflex, 0,
-                                                                           (disturb - counter) / env_timestep, 0)
-                    next_state, reward, done, _ = eval_env.jitter_step_end(reflex, jitter_force, reflex_frames - (
-                                (disturb - counter) / env_timestep), 0)
-                    frames_simulated += reflex_frames
-                    force_frames_simulated += reflex_frames - ((disturb - counter) / env_timestep)
-                next_state, reward, done, _ = eval_env.jitter_step_start(action, jitter_force, max(
-                    ((disturb - counter) / env_timestep) - frames_simulated, 0),
-                                                                         (frame_skip - ((
-                                                                                                    disturb - counter) / env_timestep)) - frames_simulated,
-                                                                         jit_frames - force_frames_simulated)
-                jittered_frames = frame_skip - ((disturb - counter) / env_timestep)
-                if jittered_frames >= jit_frames:
-                    jittered_frames = 0
-                    jittering = False
-                    eval_env.model.opt.gravity[0] = 0
-                    counter = 0
-                    force += 0.25
-                else:
-                    jittering = True
-                    eval_env.model.opt.gravity[0] = jitter_force
-                    counter += response_rate
-
-            elif jit_frames - jittered_frames < frame_skip:  # Jitter force will dispear from now!
-
-                frames_simulated = 0
-                if reflex:
-                    next_state, reward, done, _ = eval_env.jitter_step_end(reflex, jitter_force, reflex_frames, 0)
-                    frames_simulated += reflex_frames
-
-                next_state, reward, done, _ = eval_env.jitter_step_end(
-                    action, jitter_force, jit_frames - jittered_frames - frames_simulated,
-                                          frame_skip - (jit_frames - jittered_frames))
-                jittering = False  # Stop jittering now
-                eval_env.model.opt.gravity[0] = 0
-                jittered_frames = 0
-                counter = 0
-                force += 0.25
-
-            else:  # Jitter force keeps existing now!
-
-                next_state, reward, done = env_step(eval_env, reflex, action, reflex_frames, frame_skip)
-                jittered_frames += frame_skip
-                counter += response_rate
-                if jittered_frames == jit_frames:
-                    jittering = False
-                    eval_env.model.opt.gravity[0] = 0
-                    counter = 0
-                    force += 0.25
-
+            jittering, disturb, counter, jittered_frames, jitter_force, force, next_state, reward, done = perform_action(
+                jittering, disturb, counter, response_rate, eval_env, reflex, action, reflex_frames, frame_skip,
+                const_jitter_force, force, env_timestep, jit_frames, jittered_frames, const_disturb_five, jitter_force, 1)
 
             avg_reward += reward
             avg_angle += abs(next_state[1])
-            steps += 1
-            state = next_state
             counter = round(counter, 3)
-            if jit_duration:
-                if counter == disturb:
-                    jitter_force = force * 9.81 * (2 * (random.random() > 0.5) - 1)
-                    eval_env.model.opt.gravity[0] = jitter_force
-                    jittering = True
-                    jittered_frames = 0
+            state = next_state
+            if counter == disturb:
+                jitter_force, force = const_jitter_force(force)
+                eval_env.model.opt.gravity[0] = jitter_force
+                jittering = True
+                jittered_frames = 0
+
+            t += 1
+            if prev_action:
+                jerk += abs(action[0] - prev_action)
+            prev_action = action[0]
 
     avg_reward /= eval_episodes
-    avg_angle /= steps
+    avg_angle /= eval_episodes
+    jerk /= t
+    actions /= eval_episodes
+    return avg_reward, avg_angle, jerk, actions
 
-    print("---------------------------------------")
-    print(f"Evaluation over {eval_episodes} episodes: {avg_reward:.3f} Avg Angle: {avg_angle:.5f}")
-    print("---------------------------------------\n")
-    return avg_reward, avg_angle
 

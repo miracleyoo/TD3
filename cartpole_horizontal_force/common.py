@@ -4,7 +4,8 @@ import numpy as np
 import types
 import os
 import random
-__all__ = ["make_env", "create_folders", "get_frame_skip_and_timestep", "perform_action", "random_jitter_force", "random_disturb"]
+__all__ = ["make_env", "create_folders", "get_frame_skip_and_timestep", "perform_action", "random_jitter_force",
+           "random_disturb", "const_disturb_five", "const_jitter_force"]
 
 
 # Make environment using its name
@@ -227,11 +228,19 @@ def env_step(env, reflex, action, reflex_frames, frame_skip):
 
 
 def random_jitter_force(force):
-    return np.random.random() * force * (2 * (np.random.random() > 0.5) - 1)  # Jitter force strength w/ direction
+    return np.random.random() * force * (2 * (np.random.random() > 0.5) - 1), force  # Jitter force strength w/ direction
+
+
+def const_jitter_force(force):
+    return force * (2 * (np.random.random() > 0.5) - 1), force + (0.25 * 9.81)
 
 
 def random_disturb(catastrophe_frequency):
     return round(random.randint(50, 100) * 0.04 * (1 / catastrophe_frequency), 3)
+
+
+def const_disturb_five(catastrophe_frequency):
+    return 5
 
 
 def perform_action(jittering, disturb, counter, response_rate, env, reflex, action, reflex_frames, frame_skip, get_jitter_force, max_force, timestep, jit_frames, jittered_frames, get_next_disturb, jitter_force, catastrophe_frequency):
@@ -254,7 +263,7 @@ def perform_action(jittering, disturb, counter, response_rate, env, reflex, acti
             next_state, reward, done = env_step(env, reflex, action, reflex_frames, frame_skip)
             counter += response_rate
         elif round(disturb - counter, 3) < response_rate: # jitter force starts
-            jitter_force = get_jitter_force(max_force)
+            jitter_force, max_force = get_jitter_force(max_force)
             frames_simulated = 0
             force_frames_simulated = 0
             if reflex:
@@ -305,4 +314,4 @@ def perform_action(jittering, disturb, counter, response_rate, env, reflex, acti
             if jittered_frames == jit_frames:
                 stop_force()
 
-    return jittering, disturb, counter, jittered_frames, jitter_force, next_state, reward, done
+    return jittering, disturb, counter, jittered_frames, jitter_force, max_force, next_state, reward, done

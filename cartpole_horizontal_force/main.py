@@ -138,7 +138,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
             ).clip(-max_action, max_action)
 
         # Perform action
-        jittering, disturb, counter, jittered_frames, jitter_force, next_state, reward, done = perform_action(jittering, disturb, counter, response_rate, env, False, action, 0, frame_skip, random_jitter_force, max_force, timestep, jit_frames, jittered_frames, random_disturb, jitter_force, catastrophe_frequency)
+        jittering, disturb, counter, jittered_frames, jitter_force, max_force, next_state, reward, done = perform_action(jittering, disturb, counter, response_rate, env, False, action, 0, frame_skip, random_jitter_force, max_force, timestep, jit_frames, jittered_frames, random_disturb, jitter_force, catastrophe_frequency)
         done_bool = float(done) if episode_timesteps < max_episode_timestep else 0
 
         # Store data in replay buffer
@@ -178,8 +178,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
                     policy.save(f"./models/{file_name}_best")
 
         if counter == disturb:  # Execute adding jitter horizontal force here
-            jitter_force = np.random.random() * max_force * \
-                (2*(np.random.random() > 0.5)-1)  # Jitter force strength w/ direction
+            jitter_force, _ = random_jitter_force(max_force)  # Jitter force strength w/ direction
             env.model.opt.gravity[0] = jitter_force
             jittering = True
             jittered_frames = 0
