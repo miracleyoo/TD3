@@ -132,7 +132,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
                 action = (a + np.random.normal(0, max_action * expl_noise, size=action_dim)).clip(-max_action, max_action)
 
         # Perform action
-        jittering, disturb, counter, jittered_frames, jitter_force, max_force, next_state, reward, done = perform_action(jittering, disturb, counter, response_rate, env, reflex, action, reflex_frames, frame_skip, random_jitter_force, max_force, timestep, jit_frames, jittered_frames, random_disturb, jitter_force, catastrophe_frequency)
+        jittering, disturb, counter, jittered_frames, jitter_force, max_force, next_state, reward, done = perform_action(jittering, disturb, counter, response_rate, env, reflex, action, reflex_frames, frame_skip, random_jitter_force, max_force, timestep, jit_frames, jittered_frames, random_disturb, jitter_force, catastrophe_frequency, delayed_env)
 
         done_bool = float(done) if episode_timesteps < env.env.env._max_episode_steps else 0
 

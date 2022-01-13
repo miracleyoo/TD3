@@ -101,7 +101,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     episode_timesteps = 0
     episode_num = 0
     jittered_frames = 0
-    max_episode_timestep = env.env.env._max_episode_steps if delayed_env else env._max_episode_steps
+    max_episode_timestep = env.env.env._max_episode_steps if delayed_env else env.env._max_episode_steps
 
     counter = 0
     best_performance = 0
@@ -138,7 +138,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
             ).clip(-max_action, max_action)
 
         # Perform action
-        jittering, disturb, counter, jittered_frames, jitter_force, max_force, next_state, reward, done = perform_action(jittering, disturb, counter, response_rate, env, False, action, 0, frame_skip, random_jitter_force, max_force, timestep, jit_frames, jittered_frames, random_disturb, jitter_force, catastrophe_frequency)
+        jittering, disturb, counter, jittered_frames, jitter_force, max_force, next_state, reward, done = perform_action(jittering, disturb, counter, response_rate, env, False, action, 0, frame_skip, random_jitter_force, max_force, timestep, jit_frames, jittered_frames, random_disturb, jitter_force, catastrophe_frequency, delayed_env)
         done_bool = float(done) if episode_timesteps < max_episode_timestep else 0
 
         # Store data in replay buffer

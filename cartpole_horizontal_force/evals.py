@@ -115,7 +115,7 @@ def eval_policy_ori(policy, env_name, eval_episodes=10, time_change_factor=1, ji
 
             jittering, disturb, counter, jittered_frames, jitter_force, max_force, next_state, reward, done = perform_action(
                 jittering, disturb, counter, response_rate, eval_env, reflex, action, reflex_frames, frame_skip, random_jitter_force,
-                max_force, env_timestep, jit_frames, jittered_frames, random_disturb, jitter_force, catastrophe_frequency)
+                max_force, env_timestep, jit_frames, jittered_frames, random_disturb, jitter_force, catastrophe_frequency, delayed_env)
 
             counter = round(counter, 3)
             avg_reward += reward
@@ -178,7 +178,7 @@ def eval_policy_increasing_force(policy, env_name, eval_episodes=10, time_change
             # Perform action
             jittering, disturb, counter, jittered_frames, jitter_force, force, next_state, reward, done = perform_action(
                 jittering, disturb, counter, response_rate, eval_env, reflex, action, reflex_frames, frame_skip,
-                const_jitter_force, force, env_timestep, jit_frames, jittered_frames, const_disturb_five, jitter_force, 1)
+                const_jitter_force, force, env_timestep, jit_frames, jittered_frames, const_disturb_five, jitter_force, 1, delayed_env)
 
             avg_reward += reward
             avg_angle += abs(next_state[1])
