@@ -344,6 +344,6 @@ def perform_action(jittering, disturb, counter, response_rate, env, reflex, acti
         if delayed_env:
             env.env.env._elapsed_steps += 1
         else:
-            env._elapsed_steps += 1
+            env.env._elapsed_steps += 1
 
     return jittering, disturb, counter, jittered_frames, jitter_force, max_force, next_state, reward, done
