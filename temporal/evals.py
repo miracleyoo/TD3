@@ -143,7 +143,7 @@ def eval_policy_increasing_force(policy, env_name, eval_episodes=10, time_change
     if delayed_env:
         eval_env.env.env._max_episode_steps = 100000
     else:
-        eval_env._max_episode_steps = 100000
+        eval_env.env._max_episode_steps = 100000
     avg_reward = 0.
     avg_angle = 0.
     actions = 0

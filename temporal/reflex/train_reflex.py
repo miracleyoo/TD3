@@ -23,13 +23,14 @@ default_frame_skip = 2
 def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timesteps=1e5,
           expl_noise=0.1, batch_size=256, discount=0.99, tau=0.005, policy_freq=2, policy_noise=2, noise_clip=0.5,
           save_model=False, load_model="", jit_duration=0.02, g_ratio=1, response_rate=0.08, std_eval=False,
-          catastrophe_frequency=1, reflex_response_rate=0.02, reflex_threshold=0.15):
+          catastrophe_frequency=1, reflex_response_rate=0.02, reflex_threshold=0.15, reflex_force_scale=1.0):
 
     delayed_env = True
     max_force = g_ratio * 9.81
     env_name = 'InvertedPendulum-v2'
     eval_policy = eval_policy_std if std_eval else eval_policy_ori
-    arguments = [policy, 'reflex', env_name, seed, jit_duration, g_ratio, response_rate, catastrophe_frequency, reflex_response_rate, reflex_threshold]
+    arguments = [policy, 'reflex', env_name, seed, jit_duration, g_ratio, response_rate, catastrophe_frequency,
+                 reflex_response_rate, reflex_threshold, reflex_force_scale]
     file_name = '_'.join([str(x) for x in arguments])
     print("---------------------------------------")
     print(f"Policy: {policy}, Env: {env_name}, Seed: {seed}")
@@ -75,7 +76,8 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         "observation_space": env.observation_space,
         "delayed_env": delayed_env,
         "reflex": True,
-        "threshold": reflex_threshold
+        "threshold": reflex_threshold,
+        "reflex_force_scale": reflex_force_scale
     }
 
     # Initialize policy
@@ -117,19 +119,10 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
         # Select action randomly or according to policy
         if t < start_timesteps:
-            if not reflex_frames:
-                action = policy.select_action(state)
-            else:
-                reflex, action = policy.select_action(state)
+            reflex, action = policy.select_action(state)
         else:
-            if not reflex_frames:
-                action = (
-                        policy.select_action(np.array(state))
-                        + np.random.normal(0, max_action * expl_noise, size=action_dim)
-                ).clip(-max_action, max_action)
-            else:
-                reflex, a = policy.select_action(np.array(state))
-                action = (a + np.random.normal(0, max_action * expl_noise, size=action_dim)).clip(-max_action, max_action)
+            reflex, a = policy.select_action(np.array(state))
+            action = (a + np.random.normal(0, max_action * expl_noise, size=action_dim)).clip(-max_action, max_action)
 
         # Perform action
         jittering, disturb, counter, jittered_frames, jitter_force, max_force, next_state, reward, done = perform_action(jittering, disturb, counter, response_rate, env, reflex, action, reflex_frames, frame_skip, random_jitter_force, max_force, timestep, jit_frames, jittered_frames, random_disturb, jitter_force, catastrophe_frequency, delayed_env)
@@ -192,8 +185,8 @@ if __name__ == "__main__":
     parser.add_argument("--policy", default="TD3", help="Policy name (TD3, DDPG or OurDDPG)")
     parser.add_argument("--seed", default=0, type=int, help="Sets Gym, PyTorch and Numpy seeds")
     parser.add_argument("--start_timesteps", default=25e3, type=int, help="Time steps initial random policy is used")
-    parser.add_argument("--eval_freq", default=5e3, type=int, help="How often (time steps) we evaluate")
-    parser.add_argument("--max_timesteps", default=1e5, type=int, help="Max time steps to run environment")
+    parser.add_argument("--eval_freq", default=10000, type=int, help="How often (time steps) we evaluate")
+    parser.add_argument("--max_timesteps", default=4e5, type=int, help="Max time steps to run environment")
     parser.add_argument("--expl_noise", default=0.1, help="Std of Gaussian exploration noise")
     parser.add_argument("--batch_size", default=256, type=int, help="Batch size for both actor and critic")
     parser.add_argument("--discount", default=0.99, help="Discount factor")
@@ -210,6 +203,7 @@ if __name__ == "__main__":
     parser.add_argument("--catastrophe_frequency", default=1.0, type=float, help="Modify how often to apply catastrophe")
     parser.add_argument("--reflex_response_rate", default=0.02, type=float, help="reflex Response time of the agent in seconds")
     parser.add_argument("--reflex_threshold", default=0.15, type=float, help="Threhsold at which the reflex activates")
+    parser.add_argument("--reflex_force_scale", default=1.0, type=float, help="Multiply reflex with this value")
 
 
     args = parser.parse_args()

@@ -47,7 +47,7 @@ class DelayedActor(nn.Module):
 
 
 class DelayedQuickActor(nn.Module):
-    def __init__(self, observation_space, action_dim, max_action, threshold=0.15):
+    def __init__(self, observation_space, action_dim, max_action, threshold=0.15, reflex_force_scale=1):
         super(DelayedQuickActor, self).__init__()
 
         input_dim = sum(s.shape[0] for s in observation_space)
@@ -62,8 +62,8 @@ class DelayedQuickActor(nn.Module):
         self.reflex = nn.Linear(2, 1)
         self.reflex.weight.requires_grad = False
         self.reflex.bias.requires_grad = False
-        self.reflex.weight.data[0, 0] = 1 / (0.20 - threshold)
-        self.reflex.weight.data[0, 1] = -1 / (0.20 - threshold)
+        self.reflex.weight.data[0, 0] = reflex_force_scale / (0.20 - threshold)
+        self.reflex.weight.data[0, 1] = -reflex_force_scale / (0.20 - threshold)
         self.reflex.bias.data[0] = 0
 
         self.l1 = nn.Linear(input_dim, 256)
@@ -75,7 +75,7 @@ class DelayedQuickActor(nn.Module):
     def forward(self, state):
         # state = torch.cat(state, dim=1)
         a1 = F.relu(self.reflex_detector(state))
-        reflex = self.max_action * self.reflex(a1)
+        reflex = torch.clamp(self.max_action * self.reflex(a1), min=-self.max_action, max=self.max_action)
 
         a2 = F.relu(self.l1(state))
         a = F.relu(self.l2(torch.cat((a1, a2), dim=1)))
@@ -168,14 +168,15 @@ class TD3(object):
             delayed_env=False,
             reflex=False,
             neurons=256,
-            threshold=0.15
+            threshold=0.15,
+            reflex_force_scale=1.0,
     ):
 
         self.delayed_env = delayed_env
         self.reflex = reflex
 
         if reflex:
-            self.actor = DelayedQuickActor(observation_space, action_dim, max_action, threshold).to(device)
+            self.actor = DelayedQuickActor(observation_space, action_dim, max_action, threshold, reflex_force_scale).to(device)
             self.critic = DelayedCritic(observation_space, action_dim).to(device)
         elif self.delayed_env:
             self.actor = DelayedActor(observation_space, action_dim, max_action).to(device)
