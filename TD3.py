@@ -47,7 +47,7 @@ class DelayedActor(nn.Module):
 
 
 class DelayedQuickActor(nn.Module):
-    def __init__(self, observation_space, action_dim, max_action, threshold=0.15, reflex_force_scale=1):
+    def __init__(self, observation_space, action_dim, max_action, threshold=0.15, reflex_force_scale=1.0):
         super(DelayedQuickActor, self).__init__()
 
         input_dim = sum(s.shape[0] for s in observation_space)
@@ -67,7 +67,7 @@ class DelayedQuickActor(nn.Module):
         self.reflex.bias.data[0] = 0
 
         self.l1 = nn.Linear(input_dim, 256)
-        self.l2 = nn.Linear(258, 256)
+        self.l2 = nn.Linear(256, 256)
         self.l3 = nn.Linear(256, action_dim)
 
         self.max_action = max_action
@@ -75,10 +75,13 @@ class DelayedQuickActor(nn.Module):
     def forward(self, state):
         # state = torch.cat(state, dim=1)
         a1 = F.relu(self.reflex_detector(state))
-        reflex = torch.clamp(self.max_action * self.reflex(a1), min=-self.max_action, max=self.max_action)
+        reflex = self.reflex(a1)
 
         a2 = F.relu(self.l1(state))
-        a = F.relu(self.l2(torch.cat((a1, a2), dim=1)))
+        # a = F.relu(self.l2(torch.cat((a2, a1), dim=1)))
+        # print(torch.cat((a1, a2), dim=1).shape, a1.shape, a2.shape)
+        a = F.relu(self.l2(a2))
+
         return reflex, self.max_action * torch.tanh(self.l3(a))
 
 
@@ -184,6 +187,7 @@ class TD3(object):
         else:
             self.actor = Actor(state_dim, action_dim, max_action, neurons).to(device)
             self.critic = Critic(state_dim, action_dim, neurons).to(device)
+
         self.actor_target = copy.deepcopy(self.actor)
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=3e-4)
 
@@ -244,7 +248,7 @@ class TD3(object):
         # Delayed policy updates
         if self.total_it % self.policy_freq == 0:
 
-            # Compute actor losse
+            # Compute actor loss
             if self.reflex:
                 actor_loss = -self.critic.Q1(state, self.actor(state)[1]).mean()
             else:
@@ -261,6 +265,7 @@ class TD3(object):
 
             for param, target_param in zip(self.actor.parameters(), self.actor_target.parameters()):
                 target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+
 
     def save(self, filename):
         torch.save(self.critic.state_dict(), filename + "_critic")

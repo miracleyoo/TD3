@@ -121,7 +121,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         if t < start_timesteps:
             reflex, action = policy.select_action(state)
         else:
-            reflex, a = policy.select_action(np.array(state))
+            reflex, a = policy.select_action(state)
             action = (a + np.random.normal(0, max_action * expl_noise, size=action_dim)).clip(-max_action, max_action)
 
         # Perform action

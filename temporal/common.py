@@ -1,5 +1,6 @@
 import gym
 import numpy as np
+import torch
 # from gym.envs.mujoco import inverted_pendulum
 import types
 import os
@@ -268,6 +269,10 @@ def const_disturb_five(catastrophe_frequency):
 def perform_action(jittering, disturb, counter, response_rate, env, reflex, action, reflex_frames, frame_skip, get_jitter_force, max_force, timestep, jit_frames, jittered_frames, get_next_disturb, jitter_force, catastrophe_frequency, delayed_env):
 
     current_steps = env.env.env._elapsed_steps if delayed_env else env.env._elapsed_steps
+
+    if reflex:
+        reflex += env.previous_action + reflex
+        reflex = np.clip(reflex, -env.action_space.high[0], env.action_space.high[0])
 
     def stop_force():
         nonlocal jittered_frames
