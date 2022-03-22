@@ -161,6 +161,7 @@ class RealTimeWrapper(gym.Wrapper):
 
         action = self.previous_action
         reward = 1.0
+        self.model.opt.gravity[0] = 0
         self.do_simulation(action, int(frames1))
         self.model.opt.gravity[0] = force
         if frames2 < jit_frames:
@@ -221,14 +222,13 @@ def create_folders():
 def get_frame_skip_and_timestep(jit_duration, response_rate, reflex_response_rate=None):
 
     if reflex_response_rate:
-        smallest_step = jit_duration if jit_duration < reflex_response_rate else reflex_response_rate
+        timestep = jit_duration if jit_duration < reflex_response_rate else reflex_response_rate
     else:
-        smallest_step = jit_duration if jit_duration < response_rate else response_rate
+        timestep = jit_duration if jit_duration < response_rate else response_rate
 
-    frame_skip = response_rate / smallest_step
-    timestep = smallest_step
+    frame_skip = response_rate / timestep
     if jit_duration % timestep == 0:
-        jit_frames = int(jit_duration / timestep)
+        jit_frames = int(jit_duration / timestep)  # number of frames for the perturbation
     else:
         raise ValueError("jit_duration should be a multiple of the timestep: " + str(timestep))
 
@@ -266,7 +266,7 @@ def const_disturb_five(catastrophe_frequency):
     return 5
 
 
-def perform_action(jittering, disturb, counter, response_rate, env, reflex, action, reflex_frames, frame_skip, get_jitter_force, max_force, timestep, jit_frames, jittered_frames, get_next_disturb, jitter_force, catastrophe_frequency, delayed_env):
+def perform_action(jittering, disturb, elapsed_time, response_rate, env, reflex, action, reflex_frames, frame_skip, get_jitter_force, max_force, timestep, jit_frames, jittered_frames, get_next_disturb, jitter_force, catastrophe_frequency, delayed_env):
 
     current_steps = env.env.env._elapsed_steps if delayed_env else env.env._elapsed_steps
 
@@ -278,47 +278,47 @@ def perform_action(jittering, disturb, counter, response_rate, env, reflex, acti
         nonlocal jittered_frames
         nonlocal jittering
         nonlocal env
-        nonlocal counter
+        nonlocal elapsed_time
         nonlocal disturb
 
         jittered_frames = 0
         jittering = False
         env.model.opt.gravity[0] = 0
-        counter = 0
+        elapsed_time = 0
         disturb = get_next_disturb(catastrophe_frequency)
 
     if not jittering:
-        if round(disturb - counter, 3) >= response_rate:  # Not during the frames when jitter force keeps existing
+        if round(disturb - elapsed_time, 3) >= response_rate:  # Not during the frames when jitter force keeps existing
             next_state, reward, done = env_step(env, reflex, action, reflex_frames, frame_skip)
-            counter += response_rate
-        elif round(disturb - counter, 3) < response_rate: # jitter force starts
+            elapsed_time += response_rate
+        elif round(disturb - elapsed_time, 3) < response_rate: # jitter force starts
             jitter_force, max_force = get_jitter_force(max_force)
             frames_simulated = 0
             force_frames_simulated = 0
             if reflex:
-                if round(disturb - counter, 3) / timestep >= reflex_frames:
+                if round(disturb - elapsed_time, 3) / timestep >= reflex_frames:
                     next_state, reward, done, _ = env.jitter_step_end(reflex, 0, reflex_frames, 0)
                     frames_simulated += reflex_frames
-                elif round(disturb - counter, 3) / timestep < reflex_frames:
-                    reflex_frames_until_disturb = round(disturb - counter, 3) / timestep
+                elif round(disturb - elapsed_time, 3) / timestep < reflex_frames:
+                    reflex_frames_until_disturb = round(disturb - elapsed_time, 3) / timestep
                     reflex_frames_after_disturb = reflex_frames - reflex_frames_until_disturb
-                    next_state, reward, done, _ = env.jitter_step_end(reflex, jitter_force, reflex_frames_until_disturb,
-                                                                      reflex_frames_after_disturb)
+                    next_state, reward, done, _ = env.jitter_step_start(reflex, jitter_force, reflex_frames_until_disturb,
+                                                                      reflex_frames_after_disturb, jit_frames)
                     frames_simulated += reflex_frames
-                    force_frames_simulated += reflex_frames_after_disturb
+                    force_frames_simulated += min(reflex_frames_after_disturb, jit_frames)
 
-            frames_until_disturb = max((round(disturb - counter, 3) / timestep) - frames_simulated, 0)
-            frames_after_disturb = frame_skip - max((round(disturb - counter, 3) / timestep), frames_simulated)
+            frames_until_disturb = max((round(disturb - elapsed_time, 3) / timestep) - frames_simulated, 0)
+            frames_after_disturb = frame_skip - max((round(disturb - elapsed_time, 3) / timestep), frames_simulated)
             next_state, reward, done, _ = env.jitter_step_start(action, jitter_force, frames_until_disturb,
                                                                 frames_after_disturb, jit_frames - force_frames_simulated)
 
-            jittered_frames = frame_skip - (round(disturb - counter, 3) / timestep)
+            jittered_frames = frame_skip - (round(disturb - elapsed_time, 3) / timestep)
             if jittered_frames >= jit_frames:
                 stop_force()
             else:
                 jittering = True
                 env.model.opt.gravity[0] = jitter_force
-                counter += response_rate
+                elapsed_time += response_rate
     else:
         if jit_frames - jittered_frames < frame_skip:  # Jitter force will dispear from now!
             frames_simulated = 0
@@ -339,7 +339,7 @@ def perform_action(jittering, disturb, counter, response_rate, env, reflex, acti
             env.model.opt.gravity[0] = jitter_force
             next_state, reward, done = env_step(env, reflex, action, reflex_frames, frame_skip)
             jittered_frames += frame_skip
-            counter += response_rate
+            elapsed_time += response_rate
             if jittered_frames == jit_frames:
                 stop_force()
 
@@ -351,4 +351,4 @@ def perform_action(jittering, disturb, counter, response_rate, env, reflex, acti
         else:
             env.env._elapsed_steps += 1
 
-    return jittering, disturb, counter, jittered_frames, jitter_force, max_force, next_state, reward, done
+    return jittering, disturb, elapsed_time, jittered_frames, jitter_force, max_force, next_state, reward, done

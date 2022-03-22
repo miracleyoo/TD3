@@ -10,10 +10,12 @@ import torch
 import argparse
 import os
 import random
-
+import neptune.new as neptune
 sys.path.append('../')
 from common import make_env, get_frame_skip_and_timestep, perform_action, random_jitter_force, random_disturb
 from evals import *
+
+
 
 default_timestep = 0.02
 default_frame_skip = 2
@@ -31,6 +33,27 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     eval_policy = eval_policy_std if std_eval else eval_policy_ori
     arguments = [policy, 'reflex', env_name, seed, jit_duration, g_ratio, response_rate, catastrophe_frequency,
                  reflex_response_rate, reflex_threshold, reflex_force_scale]
+
+    run = neptune.init(
+        project="dee0512/Reflex",
+        api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiI4YzE3ZTdmOS05MzJlLTQyYTAtODIwNC0zNjAyMzIwODEzYWQifQ==",
+    )
+
+    parameters = {
+        'policy': policy,
+        'env_name': env_name,
+        'seed': seed,
+        'jit_duration': jit_duration,
+        'g_ratio': g_ratio,
+        'response_rate': response_rate,
+        'catastrophe_frequency': catastrophe_frequency,
+        'reflex_response_rate': reflex_response_rate,
+        'reflex_threshold': reflex_threshold,
+        'reflex_force_scale': reflex_force_scale
+    }
+
+    run["parameters"] = parameters
+
     file_name = '_'.join([str(x) for x in arguments])
     print("---------------------------------------")
     print(f"Policy: {policy}, Env: {env_name}, Seed: {seed}")
@@ -99,9 +122,11 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     replay_buffer = utils.ReplayBuffer(state_dim+action_dim, action_dim)
 
     # Evaluate untrained policy
-    evaluations = [eval_policy(policy, env_name, eval_episodes=10, time_change_factor=time_change_factor,
+    eval = eval_policy(policy, env_name, eval_episodes=10, time_change_factor=time_change_factor,
                                jit_duration=jit_duration, env_timestep=timestep, max_force=max_force, frame_skip=frame_skip,
-                               jit_frames=jit_frames, delayed_env=delayed_env, reflex_frames=reflex_frames)]
+                               jit_frames=jit_frames, delayed_env=delayed_env, reflex_frames=reflex_frames)
+    evaluations = [eval]
+    run['avg_reward'].log(eval * response_rate)
 
     state, done = env.reset(), False
     episode_reward = 0
@@ -120,6 +145,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         # Select action randomly or according to policy
         if t < start_timesteps:
             reflex, action = policy.select_action(state)
+            action = env.action_space.sample()
         else:
             reflex, a = policy.select_action(state)
             action = (a + np.random.normal(0, max_action * expl_noise, size=action_dim)).clip(-max_action, max_action)
@@ -162,9 +188,12 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
                                      frame_skip=frame_skip, jit_frames=jit_frames, delayed_env=delayed_env,
                                      reflex_frames=reflex_frames)
             evaluations.append(avg_reward)
+            run['avg_reward'].log(avg_reward * response_rate)
             np.save(f"./results/{file_name}", evaluations)
+            run['avg_reward'].log(avg_reward * response_rate)
             if best_performance < avg_reward:
                 best_performance = avg_reward
+                run['best_reward'].log(best_performance * response_rate)
                 if save_model:
                     policy.save(f"./models/{file_name}_best")
 
@@ -178,6 +207,8 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         policy.save(f"./models/{file_name}_final")
         # if t >= 25000:
         #     env.render()
+
+    run.stop()
 
 
 if __name__ == "__main__":

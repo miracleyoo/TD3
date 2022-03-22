@@ -10,7 +10,7 @@ import torch
 import argparse
 import os
 import random
-
+import neptune.new as neptune
 from common import make_env, create_folders, get_frame_skip_and_timestep, perform_action, random_jitter_force, random_disturb
 from evals import *
 
@@ -28,6 +28,22 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     arguments = [policy, env_name, seed, jit_duration, g_ratio, response_rate, catastrophe_frequency, delayed_env, neurons]
     file_name = '_'.join([str(x) for x in arguments])
 
+    run = neptune.init(
+        project="dee0512/Reflex",
+        api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiI4YzE3ZTdmOS05MzJlLTQyYTAtODIwNC0zNjAyMzIwODEzYWQifQ==",
+    )
+    parameters = {
+        'policy': policy,
+        'env_name': env_name,
+        'seed': seed,
+        'jit_duration': jit_duration,
+        'g_ratio': g_ratio,
+        'response_rate': response_rate,
+        'catastrophe_frequency': catastrophe_frequency,
+        'delayed_env': delayed_env,
+        'neurons': neurons,
+    }
+    run["parameters"] = parameters
     print("---------------------------------------")
     print(f"Policy: {policy}, Env: {env_name}, Seed: {seed}")
     print("---------------------------------------")
@@ -92,9 +108,11 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
 
     # Evaluate untrained policy
-    evaluations = [eval_policy(policy, env_name, eval_episodes=10, time_change_factor=time_change_factor,
+    avg_reward = eval_policy(policy, env_name, eval_episodes=10, time_change_factor=time_change_factor,
                                jit_duration=jit_duration, env_timestep=timestep, max_force=max_force, frame_skip=frame_skip,
-                               jit_frames=jit_frames, delayed_env=delayed_env)]
+                               jit_frames=jit_frames, delayed_env=delayed_env)
+    evaluations = [avg_reward]
+    run['avg_reward'].log(avg_reward * response_rate)
 
     state, done = env.reset(), False
     episode_reward = 0
@@ -170,10 +188,12 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
                                      jit_duration=jit_duration, env_timestep=timestep, max_force=max_force,
                                      frame_skip=frame_skip, jit_frames=jit_frames, delayed_env=delayed_env)
             evaluations.append(avg_reward)
+            run['avg_reward'].log(avg_reward * response_rate)
             np.save(f"./results/{file_name}", evaluations)
 
             if best_performance < avg_reward:
                 best_performance = avg_reward
+                run['best_reward'].log(best_performance * response_rate)
                 if save_model:
                     policy.save(f"./models/{file_name}_best")
 
@@ -188,6 +208,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         # if t >= 25000:
         #     env.render()
 
+    run.stop()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
