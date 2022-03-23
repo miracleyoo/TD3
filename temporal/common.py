@@ -226,13 +226,13 @@ def get_frame_skip_and_timestep(jit_duration, response_rate, reflex_response_rat
     else:
         timestep = jit_duration if jit_duration < response_rate else response_rate
 
-    frame_skip = response_rate / timestep
-    if (jit_duration / timestep) % 1 == 0:
+    frame_skip = int(response_rate / timestep)
+    if round((jit_duration / timestep), 2) % 1 == 0:
         jit_frames = int(jit_duration / timestep)  # number of frames for the perturbation
     else:
         raise ValueError("jit_duration should be a multiple of the timestep: " + str(timestep))
 
-    if (response_rate / timestep) % 1 != 0:
+    if round((response_rate / timestep), 2) % 1 != 0:
         raise ValueError("response_rate should be a multiple of the timestep: " + str(timestep))
 
     if reflex_response_rate and (reflex_response_rate / timestep) % 1 != 0:
