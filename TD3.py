@@ -203,12 +203,21 @@ class TD3(object):
 
         self.total_it = 0
 
+    def evaluate_q(self, state, action):
+        with torch.no_grad():
+            state = torch.FloatTensor(state.reshape(1, -1)).to(device)
+            action = torch.FloatTensor(action.reshape(1, -1)).to(device)
+            Q1, Q2 = self.critic(state, action)
+            Q1, Q2 = Q1.item(), Q2.item()
+        return Q1, Q2
+
     def select_action(self, state):
         state = torch.FloatTensor(state.reshape(1, -1)).to(device)
         if self.reflex:
             return self.actor(state)[0].cpu().data.numpy().flatten(), self.actor(state)[1].cpu().data.numpy().flatten()
         else:
             return self.actor(state).cpu().data.numpy().flatten()
+
     def train(self, replay_buffer, batch_size=256):
         self.total_it += 1
 
