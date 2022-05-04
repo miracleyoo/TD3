@@ -24,8 +24,8 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
           catastrophe_frequency=1, delayed_env=False, env_name='InvertedPendulum-v2', neurons=256):
 
     max_force = g_ratio * 9.81
-    eval_policy = eval_policy_std if std_eval else eval_policy_ori
-    arguments = [policy, env_name, seed, jit_duration, g_ratio, response_rate, catastrophe_frequency, delayed_env, neurons]
+    eval_policy = eval_policy_std if std_eval else eval_policy_increasing_force
+    arguments = [policy, env_name, seed, jit_duration, g_ratio, response_rate, catastrophe_frequency, delayed_env]
     file_name = '_'.join([str(x) for x in arguments])
 
     run = neptune.init(
@@ -41,7 +41,6 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         'response_rate': response_rate,
         'catastrophe_frequency': catastrophe_frequency,
         'delayed_env': delayed_env,
-        'neurons': neurons,
     }
     run["parameters"] = parameters
     print("---------------------------------------")
@@ -83,7 +82,6 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         "observation_space": env.observation_space,
         "delayed_env": delayed_env,
         "reflex": False,
-        "neurons": neurons
     }
 
     # Initialize policy
@@ -108,9 +106,9 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
 
     # Evaluate untrained policy
-    avg_reward = eval_policy(policy, env_name, eval_episodes=10, time_change_factor=time_change_factor,
-                               jit_duration=jit_duration, env_timestep=timestep, max_force=max_force, frame_skip=frame_skip,
-                               jit_frames=jit_frames, delayed_env=delayed_env)
+    avg_reward, _, _, _ = eval_policy(policy, env_name, eval_episodes=10, time_change_factor=time_change_factor,
+                             env_timestep=timestep, frame_skip=frame_skip, jit_frames=jit_frames,
+                             response_rate=response_rate, delayed_env=delayed_env)
     evaluations = [avg_reward]
     run['avg_reward'].log(avg_reward * response_rate)
 
@@ -184,9 +182,9 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         # Evaluate episode
         if (t + 1) % eval_freq == 0:
 
-            avg_reward = eval_policy(policy, env_name, eval_episodes=10, time_change_factor=time_change_factor,
-                                     jit_duration=jit_duration, env_timestep=timestep, max_force=max_force,
-                                     frame_skip=frame_skip, jit_frames=jit_frames, delayed_env=delayed_env)
+            avg_reward, _, _, _ = eval_policy(policy, env_name, eval_episodes=10, time_change_factor=time_change_factor,
+                                     env_timestep=timestep, frame_skip=frame_skip, jit_frames=jit_frames,
+                                     response_rate=response_rate, delayed_env=delayed_env)
             evaluations.append(avg_reward)
             run['avg_reward'].log(avg_reward * response_rate)
             np.save(f"./results/{file_name}", evaluations)
@@ -215,9 +213,9 @@ if __name__ == "__main__":
     parser.add_argument("--policy", default="TD3", help="Policy name (TD3, DDPG or OurDDPG)")
     parser.add_argument("--env_name", default="InvertedPendulum-v2", help="Environment name")
     parser.add_argument("--seed", default=0, type=int, help="Sets Gym, PyTorch and Numpy seeds")
-    parser.add_argument("--start_timesteps", default=25e3, type=int, help="Time steps initial random policy is used")
-    parser.add_argument("--eval_freq", default=10000, type=int, help="How often (time steps) we evaluate")
-    parser.add_argument("--max_timesteps", default=400000, type=int, help="Max time steps to run environment")
+    parser.add_argument("--start_timesteps", default=1000, type=int, help="Time steps initial random policy is used")
+    parser.add_argument("--eval_freq", default=5000, type=int, help="How often (time steps) we evaluate")
+    parser.add_argument("--max_timesteps", default=1000000, type=int, help="Max time steps to run environment")
     parser.add_argument("--expl_noise", default=0.1, help="Std of Gaussian exploration noise")
     parser.add_argument("--batch_size", default=256, type=int, help="Batch size for both actor and critic")
     parser.add_argument("--discount", default=0.99, help="Discount factor")

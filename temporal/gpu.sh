@@ -14,5 +14,5 @@ response_rate=${3:-0.02}
 neurons=${4:-256}
 echo $seed $g_ratio $response_rate $neurons
 
-python main.py --seed $seed --g_ratio $g_ratio --jit_duration 0.02 --response_rate $response_rate --neurons $neurons
+python main.py --seed $seed --g_ratio $g_ratio --jit_duration 0.02 --response_rate $response_rate
 exit
