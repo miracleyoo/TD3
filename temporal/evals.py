@@ -202,10 +202,25 @@ def eval_policy_increasing_force(policy, env_name, eval_episodes=10, time_change
     return avg_reward, avg_angle, jerk, actions
 
 
-def eval_TD_error_increasing_force(critic, policy, env_name, eval_episodes=10, time_change_factor=1, env_timestep=0.02, frame_skip=1, jit_frames=0, response_rate=0.04, delayed_env=False, reflex_frames=None):
+def eval_TD_error_increasing_force(
+    critic, 
+    policy, 
+    env_name, 
+    eval_episodes=10, 
+    time_change_factor=1, 
+    env_timestep=0.02, 
+    frame_skip=1, 
+    jit_frames=0, 
+    response_rate=0.04, 
+    delayed_env=False, 
+    reflex_frames=None, 
+    REWARD_SCALE_FACTOR=None, 
+    Q_SCALE_FACTOR=None):
     
     evaluation_data = {}
     if critic.discount != policy.discount: raise ValueError
+    if REWARD_SCALE_FACTOR is None: raise ValueError
+    if Q_SCALE_FACTOR is None: raise ValueError
 
     # Make environment
     eval_env = make_env(env_name, 100, time_change_factor, env_timestep, frame_skip, delayed_env)
@@ -226,9 +241,6 @@ def eval_TD_error_increasing_force(critic, policy, env_name, eval_episodes=10, t
         jittering = False
         jitter_force = 0
         reflex = False
-        prev_Q1 = None
-        prev_Q2 = None
-        prev_reward = None
         t = 0
         state, done = eval_env.reset(), False
 
@@ -239,39 +251,53 @@ def eval_TD_error_increasing_force(critic, policy, env_name, eval_episodes=10, t
 
         while not done:
 
-            # Calculate action
+            # Calculate action for current state (using policy network)
             if not reflex_frames:
                 action = policy.select_action(state)
             else:
                 reflex, action = policy.select_action(state)
 
-            # Calculate Q
+            # Calculate Q for time t (scaled, and with policy network action)
             Q1, Q2 = critic.evaluate_q(state, action)
-
-            # Calculate TD error
-            if prev_Q1 is not None and prev_Q2 is not None:
-                TD_error_1 = prev_Q1 - (prev_reward + critic.discount * Q1)
-                TD_error_2 = prev_Q2 - (prev_reward + critic.discount * Q2)
-                TD_errors_1.append(TD_error_1)
-                TD_errors_2.append(TD_error_2)
+            Q1 = Q_SCALE_FACTOR * Q1
+            Q2 = Q_SCALE_FACTOR * Q2
 
             # Perform action
             jittering, disturb, counter, jittered_frames, jitter_force, force, next_state, reward, done = perform_action(
                 jittering, disturb, counter, response_rate, eval_env, reflex, action, reflex_frames, frame_skip,
                 const_jitter_force, force, env_timestep, jit_frames, jittered_frames, const_disturb_five, jitter_force, 1, delayed_env)
 
-            # Update environment variables
-            counter = round(counter, 3)
-            prev_Q1 = Q1
-            prev_Q2 = Q2
-            prev_reward = reward
-            state = next_state
-            if counter == disturb:
-                jitter_force, force = const_jitter_force(force)
-                eval_env.model.opt.gravity[0] = jitter_force
-                jittering = True
-                jittered_frames = 0
-            t += 1
+            # Scale reward
+            reward = REWARD_SCALE_FACTOR * reward
+
+            if not done:
+
+                # Calculate action for next state (using critic network)
+                if not reflex_frames:
+                    critic_next_action = critic.select_action(next_state)
+                else:
+                    critic_reflex, critic_next_action = critic.select_action(next_state)
+
+                # Calculate Q for time t+delta (scaled, and with critic network action)
+                Q1_next, Q2_next = critic.evaluate_q(next_state, critic_next_action)
+                Q1_next = Q_SCALE_FACTOR * Q1_next
+                Q2_next = Q_SCALE_FACTOR * Q2_next
+
+                # Calculate TD error (w.r.t. normalizing timescale)
+                TD_error_1 = (reward + critic.discount * Q1_next) - Q1
+                TD_error_2 = (reward + critic.discount * Q2_next) - Q2
+                TD_errors_1.append(TD_error_1)
+                TD_errors_2.append(TD_error_2)
+
+                # Update environment variables
+                counter = round(counter, 3)
+                state = next_state
+                if counter == disturb:
+                    jitter_force, force = const_jitter_force(force)
+                    eval_env.model.opt.gravity[0] = jitter_force
+                    jittering = True
+                    jittered_frames = 0
+                t += 1
 
             # Update statistics
             total_reward += reward
