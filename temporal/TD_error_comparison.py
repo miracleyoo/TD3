@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from common import make_env, get_frame_skip_and_timestep
 from evals import eval_TD_error_increasing_force
 
-sys.path.append("../../")
+sys.path.append("../")
 import TD3
 
 # Hyperparameters to consider

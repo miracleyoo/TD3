@@ -244,6 +244,10 @@ def eval_TD_error_increasing_force(
         t = 0
         state, done = eval_env.reset(), False
 
+        prev_reward = None
+        Q1_prev = None
+        Q2_prev = None
+
         # Statistic stores
         total_reward = 0.0
         TD_errors_1 = []
@@ -257,11 +261,6 @@ def eval_TD_error_increasing_force(
             else:
                 reflex, action = policy.select_action(state)
 
-            # Calculate Q for time t (scaled, and with policy network action)
-            Q1, Q2 = critic.evaluate_q(state, action)
-            Q1 = Q_SCALE_FACTOR * Q1
-            Q2 = Q_SCALE_FACTOR * Q2
-
             # Perform action
             jittering, disturb, counter, jittered_frames, jitter_force, force, next_state, reward, done = perform_action(
                 jittering, disturb, counter, response_rate, eval_env, reflex, action, reflex_frames, frame_skip,
@@ -272,22 +271,28 @@ def eval_TD_error_increasing_force(
 
             if not done:
 
-                # Calculate action for next state (using critic network)
+                # Calculate action for current state (using critic network)
                 if not reflex_frames:
-                    critic_next_action = critic.select_action(next_state)
+                    critic_action = critic.select_action(state)
                 else:
-                    critic_reflex, critic_next_action = critic.select_action(next_state)
+                    critic_reflex, critic_action = critic.select_action(state)
 
-                # Calculate Q for time t+delta (scaled, and with critic network action)
-                Q1_next, Q2_next = critic.evaluate_q(next_state, critic_next_action)
-                Q1_next = Q_SCALE_FACTOR * Q1_next
-                Q2_next = Q_SCALE_FACTOR * Q2_next
+                # Calculate Q for time t (scaled, and with critic action)
+                Q1, Q2 = critic.evaluate_q(state, critic_action)
+                Q1 = Q_SCALE_FACTOR * Q1
+                Q2 = Q_SCALE_FACTOR * Q2
 
-                # Calculate TD error (w.r.t. normalizing timescale)
-                TD_error_1 = (reward + critic.discount * Q1_next) - Q1
-                TD_error_2 = (reward + critic.discount * Q2_next) - Q2
-                TD_errors_1.append(TD_error_1)
-                TD_errors_2.append(TD_error_2)
+                if Q1_prev is not None and Q2_prev is not None:
+                    
+                    # Calculate TD error (w.r.t. normalizing timescale)
+                    TD_error_1 = (prev_reward + critic.discount * Q1) - Q1_prev
+                    TD_error_2 = (prev_reward + critic.discount * Q2) - Q2_prev
+                    TD_errors_1.append(TD_error_1)
+                    TD_errors_2.append(TD_error_2)
+
+                Q1_prev = Q1
+                Q2_prev = Q2
+                prev_reward = reward
 
                 # Update environment variables
                 counter = round(counter, 3)
