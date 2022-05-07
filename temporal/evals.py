@@ -2,11 +2,15 @@ from common import make_env
 import numpy as np
 import random
 import sys
+import torch
 from common import perform_action, random_disturb, random_jitter_force, const_jitter_force, const_disturb_five
 sys.path.append('../')
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-__all__ = ["eval_policy_std", "eval_policy_ori", "eval_policy_increasing_force"]
+
+__all__ = ["eval_policy_std", "eval_policy_ori", "eval_policy_increasing_force", "eval_TD_error",
+           "eval_policy_increasing_force_hybrid"]
 
 
 # Standard evaluation function. A fixed evaluation routine will be executed to
@@ -136,7 +140,7 @@ def eval_policy_ori(policy, env_name, eval_episodes=10, time_change_factor=1, ji
     return avg_reward
 
 
-def eval_policy_increasing_force(policy, env_name, eval_episodes=10, time_change_factor=1,
+def eval_policy_increasing_force(policy, env_name, max_action, eval_episodes=10, time_change_factor=1,
                                  env_timestep=0.02, frame_skip=1, jit_frames=0, response_rate=0.04, delayed_env=False,
                                  reflex_frames=None):
     eval_env = make_env(env_name, 100, time_change_factor, env_timestep, frame_skip, delayed_env)
@@ -171,6 +175,7 @@ def eval_policy_increasing_force(policy, env_name, eval_episodes=10, time_change
             else:
                 reflex, action = policy.select_action(state)
 
+            action = action.clip(-max_action, max_action)
             if reflex:
                 actions += 2
             else:
@@ -202,3 +207,130 @@ def eval_policy_increasing_force(policy, env_name, eval_episodes=10, time_change
     return avg_reward, avg_angle, jerk, actions
 
 
+def eval_policy_increasing_force_hybrid(policy, parent_policy, env_name, max_action, eval_episodes=10, time_change_factor=1,
+                                 env_timestep=0.02, frame_skip=1, jit_frames=0, response_rate=0.04, delayed_env=False, parent_steps=2):
+    eval_env = make_env(env_name, 100, time_change_factor, env_timestep, frame_skip, delayed_env)
+    if delayed_env:
+        eval_env.env.env._max_episode_steps = 100000
+    else:
+        eval_env.env._max_episode_steps = 100000
+    avg_reward = 0.
+    avg_angle = 0.
+    actions = 0
+
+    t = 0
+    for _ in range(eval_episodes):
+        eval_env.model.opt.gravity[0] = 0
+        counter = 0
+        disturb = 5
+        force = 0.25 * 9.81
+        jerk = 0
+        jittered_frames = 0
+        jittering = False
+        jitter_force = 0
+        reflex = False
+        state, done = eval_env.reset(), False
+        prev_parent_action = eval_env.previous_action
+        while not done:
+            parent_action = parent_policy.select_action(np.array(state)).clip(-max_action, max_action)
+            for ps in range(parent_steps):
+                action = policy.select_action(state).clip(-max_action, max_action)
+                actions += 1
+                pa = parent_action if ps == parent_steps - 1 else prev_parent_action
+                action = (pa + action).clip(-max_action, max_action)
+
+                jittering, disturb, counter, jittered_frames, jitter_force, force, next_state, reward, done = perform_action(
+                    jittering, disturb, counter, response_rate, eval_env, reflex, action, None, frame_skip,
+                    const_jitter_force, force, env_timestep, jit_frames, jittered_frames, const_disturb_five, jitter_force,
+                    1, delayed_env)
+
+                avg_reward += reward
+                avg_angle += abs(next_state[1])
+                counter = round(counter, 3)
+                state = next_state
+                if counter == disturb:
+                    jitter_force, force = const_jitter_force(force)
+                    eval_env.model.opt.gravity[0] = jitter_force
+                    jittering = True
+                    jittered_frames = 0
+
+                t += 1
+            prev_parent_action = parent_action
+
+    avg_reward /= eval_episodes
+    avg_angle /= eval_episodes
+    jerk /= t
+    actions /= eval_episodes
+    return avg_reward, avg_angle, jerk, actions
+
+def eval_TD_error(policy, env_name, eval_episodes=1, time_change_factor=1, env_timestep=0.02, frame_skip=1,
+                  jit_frames=0, response_rate=0.04, delayed_env=False, reflex_frames=None, critic_policy=None):
+    eval_env = make_env(env_name, 100, time_change_factor, env_timestep, frame_skip, delayed_env)
+    if delayed_env:
+        eval_env.env.env._max_episode_steps = 100000
+    else:
+        eval_env.env._max_episode_steps = 100000
+    avg_reward = 0.
+    avg_angle = 0.
+    actions = 0
+
+    t = 0
+    TD_errors = []
+    counters = []
+
+    for _ in range(eval_episodes):
+        eval_env.model.opt.gravity[0] = 0
+        counter = 0
+        disturb = 4.98
+        force = 0.25 * 9.81
+        prev_action = None
+        jerk = 0
+        jittered_frames = 0
+        jittering = False
+        jitter_force = 0
+        reflex = False
+        state, done = eval_env.reset(), False
+
+        while not done:
+            if not reflex_frames:
+                action = policy.select_action(state)
+            else:
+                reflex, action = policy.select_action(state)
+
+            if reflex:
+                actions += 2
+            else:
+                actions += 1
+            # Perform action
+            jittering, disturb, counter, jittered_frames, jitter_force, force, next_state, reward, done = perform_action(
+                jittering, disturb, counter, response_rate, eval_env, reflex, action, reflex_frames, frame_skip,
+                const_jitter_force, force, env_timestep, jit_frames, jittered_frames, const_disturb_five, jitter_force,
+                1, delayed_env)
+
+            avg_reward += reward
+            avg_angle += abs(next_state[1])
+            counter = round(counter, 3)
+            state = torch.FloatTensor(state.reshape(1, -1)).to(device)
+            ns = torch.FloatTensor(next_state.reshape(1, -1)).to(device)
+            q = critic_policy.critic.Q1(state, critic_policy.actor(state).clamp(-critic_policy.max_action,
+                                                                                critic_policy.max_action))[0][0]
+            target_q = reward + (not done) * critic_policy.discount * critic_policy.critic.Q1(ns, critic_policy.actor(ns).clamp(-critic_policy.max_action, critic_policy.max_action))[0][0]
+            TD_errors.append((target_q - q).detach().cpu().numpy())
+            counters.append(counter)
+            state = next_state
+            if counter == disturb:
+                jitter_force, force = const_jitter_force(force)
+                eval_env.model.opt.gravity[0] = jitter_force
+                jittering = True
+                jittered_frames = 0
+
+            t += 1
+            if prev_action:
+                jerk += abs(action[0] - prev_action)
+            prev_action = action[0]
+
+    avg_reward /= eval_episodes
+    avg_angle /= eval_episodes
+    jerk /= t
+    actions /= eval_episodes
+    return avg_reward, avg_angle, jerk, actions, TD_errors, counters

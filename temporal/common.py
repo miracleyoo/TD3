@@ -263,7 +263,7 @@ def random_disturb(catastrophe_frequency):
 
 
 def const_disturb_five(catastrophe_frequency):
-    return 5
+    return 4.98
 
 
 def perform_action(jittering, disturb, elapsed_time, response_rate, env, reflex, action, reflex_frames, frame_skip, get_jitter_force, max_force, timestep, jit_frames, jittered_frames, get_next_disturb, jitter_force, catastrophe_frequency, delayed_env):
