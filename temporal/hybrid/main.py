@@ -119,7 +119,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
 
     # Evaluate untrained policy
-    avg_reward, _, _, _ = eval_policy(policy, parent_policy, env_name, max_action, eval_episodes=10, time_change_factor=time_change_factor,
+    avg_reward, _, _, _, _ = eval_policy(policy, parent_policy, env_name, max_action, eval_episodes=10, time_change_factor=time_change_factor,
                              env_timestep=timestep, frame_skip=frame_skip, jit_frames=jit_frames,
                              response_rate=response_rate, delayed_env=delayed_env, parent_steps=parent_steps)
     evaluations = [avg_reward]
@@ -181,7 +181,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
             # if ps_index != parent_steps - 1:
             #     td_reward = 0
             # else:
-            td_reward = get_TD(parent_policy, parent_state, parent_action, next_state, reward, done, reward_factor)
+            td_reward = get_TD(parent_policy, state, parent_action, next_state, reward, done, reward_factor)
             replay_buffer.add(state, child_action, next_state, td_reward, done_bool)
 
             state = next_state
@@ -210,7 +210,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         # Evaluate episode
         if (t + 1) % eval_freq == 0:
 
-            avg_reward, _, _, _ = eval_policy(policy, parent_policy, env_name, max_action, eval_episodes=10,
+            avg_reward, _, _, _, _ = eval_policy(policy, parent_policy, env_name, max_action, eval_episodes=10,
                                               time_change_factor=time_change_factor,
                                               env_timestep=timestep, frame_skip=frame_skip,
                                               jit_frames=jit_frames,
