@@ -121,7 +121,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     # Evaluate untrained policy
     avg_reward, _, _, _ = eval_policy(policy, parent_policy, env_name, max_action, eval_episodes=10, time_change_factor=time_change_factor,
                              env_timestep=timestep, frame_skip=frame_skip, jit_frames=jit_frames,
-                             response_rate=response_rate, delayed_env=delayed_env)
+                             response_rate=response_rate, delayed_env=delayed_env, parent_steps=parent_steps)
     evaluations = [avg_reward]
     run['avg_reward'].log(avg_reward * response_rate)
 
@@ -214,7 +214,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
                                               time_change_factor=time_change_factor,
                                               env_timestep=timestep, frame_skip=frame_skip,
                                               jit_frames=jit_frames,
-                                              response_rate=response_rate, delayed_env=delayed_env)
+                                              response_rate=response_rate, delayed_env=delayed_env, parent_steps=parent_steps)
             evaluations.append(avg_reward)
             print(f" --------------- Evaluation reward {avg_reward * response_rate:.3f}")
             run['avg_reward'].log(avg_reward * response_rate)
