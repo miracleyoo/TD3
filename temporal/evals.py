@@ -261,7 +261,50 @@ def eval_policy_increasing_force_hybrid(policy, parent_policy, env_name, max_act
     avg_angle /= eval_episodes
     jerk /= t
     actions /= eval_episodes
-    return avg_reward, avg_angle, jerk, actions
+
+    avg_reward_parent = 0
+    t = 0
+    for _ in range(eval_episodes):
+        eval_env.model.opt.gravity[0] = 0
+        counter = 0
+        disturb = 5
+        force = 0.25 * 9.81
+        jittered_frames = 0
+        jittering = False
+        jitter_force = 0
+        reflex = False
+        state, done = eval_env.reset(), False
+        prev_parent_action = eval_env.previous_action
+        while not done:
+            parent_action = parent_policy.select_action(np.array(state)).clip(-max_action, max_action)
+            for ps in range(parent_steps):
+                action = policy.select_action(state).clip(-max_action, max_action)
+                pa = parent_action if ps == parent_steps - 1 else prev_parent_action
+                action = (pa + 0).clip(-max_action, max_action)
+
+                jittering, disturb, counter, jittered_frames, jitter_force, force, next_state, reward, done = perform_action(
+                    jittering, disturb, counter, response_rate, eval_env, reflex, action, None, frame_skip,
+                    const_jitter_force, force, env_timestep, jit_frames, jittered_frames, const_disturb_five,
+                    jitter_force,
+                    1, delayed_env)
+
+                avg_reward_parent += reward
+                counter = round(counter, 3)
+                state = next_state
+                if counter == disturb:
+                    jitter_force, force = const_jitter_force(force)
+                    eval_env.model.opt.gravity[0] = jitter_force
+                    jittering = True
+                    jittered_frames = 0
+
+                t += 1
+            prev_parent_action = parent_action
+
+    avg_reward_parent /= eval_episodes
+
+
+
+    return avg_reward, avg_angle, jerk, actions, avg_reward_parent
 
 def eval_TD_error(policy, env_name, eval_episodes=1, time_change_factor=1, env_timestep=0.02, frame_skip=1,
                   jit_frames=0, response_rate=0.04, delayed_env=False, reflex_frames=None, critic_policy=None):

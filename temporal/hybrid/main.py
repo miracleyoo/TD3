@@ -36,7 +36,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
     max_force = g_ratio * 9.81
     eval_policy = eval_policy_std if std_eval else eval_policy_increasing_force_hybrid
-    arguments = ["fast", policy, env_name, seed, jit_duration, g_ratio, response_rate, catastrophe_frequency, delayed_env, reward_factor]
+    arguments = ["fast_dense_reward", policy, env_name, seed, jit_duration, g_ratio, response_rate, catastrophe_frequency, delayed_env, reward_factor]
 
     file_name = '_'.join([str(x) for x in arguments])
 
@@ -178,10 +178,10 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
             done_bool = float(done) if episode_timesteps < max_episode_timestep else 0
 
             # Store data in replay buffer
-            if ps_index != parent_steps - 1:
-                td_reward = 0
-            else:
-                td_reward = get_TD(parent_policy, parent_state, parent_action, next_state, reward, done, reward_factor)
+            # if ps_index != parent_steps - 1:
+            #     td_reward = 0
+            # else:
+            td_reward = get_TD(parent_policy, parent_state, parent_action, next_state, reward, done, reward_factor)
             replay_buffer.add(state, child_action, next_state, td_reward, done_bool)
 
             state = next_state
