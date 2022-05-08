@@ -111,7 +111,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
                  delayed_env, 'best']
     parent_file_name = '_'.join([str(x) for x in parent_arguments])
     parent_policy_file = parent_file_name
-    parent_policy.load(f"../models_paper/{parent_policy_file}")
+    parent_policy.load(f"../models/{parent_policy_file}")
 
     if delayed_env:
         replay_buffer = utils.ReplayBuffer(state_dim+action_dim, action_dim)
