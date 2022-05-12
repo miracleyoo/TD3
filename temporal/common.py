@@ -8,6 +8,7 @@ import random
 __all__ = ["make_env", "create_folders", "get_frame_skip_and_timestep", "perform_action", "random_jitter_force",
            "random_disturb", "const_disturb_five", "const_jitter_force"]
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Make environment using its name
 def make_env(env_name, seed, time_change_factor, env_timestep, frameskip, delayed_env):
@@ -352,3 +353,18 @@ def perform_action(jittering, disturb, elapsed_time, response_rate, env, reflex,
             env.env._elapsed_steps += 1
 
     return jittering, disturb, elapsed_time, jittered_frames, jitter_force, max_force, next_state, reward, done
+
+
+def get_TD(parent_policy, state, next_state, reward, done):
+    state = torch.FloatTensor(state.reshape(1, -1)).to(device)
+    next_state = torch.FloatTensor(next_state.reshape(1, -1)).to(device)
+    q = parent_policy.critic.Q1(state, parent_policy.actor(state).clamp(-parent_policy.max_action, parent_policy.max_action))[0][0]
+    target_Q = reward + (not done) * parent_policy.discount * parent_policy.critic.Q1(next_state, parent_policy.actor(next_state).clamp(-parent_policy.max_action, parent_policy.max_action))[0][0]
+    TD = (target_Q - q).detach().cpu().data.numpy()
+    return abs(TD)
+
+
+def get_Q(parent_policy, state):
+    state = torch.FloatTensor(state.reshape(1, -1)).to(device)
+    q = parent_policy.critic.Q1(state, parent_policy.actor(state).clamp(-parent_policy.max_action, parent_policy.max_action))[0][0]
+    return q.detach().cpu().numpy()

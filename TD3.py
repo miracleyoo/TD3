@@ -46,6 +46,24 @@ class DelayedActor(nn.Module):
         return self.max_action * torch.tanh(self.l3(a))
 
 
+class DelayedActorFastHybrid(nn.Module):
+    def __init__(self, observation_space, action_dim, max_action):
+        super(DelayedActorFastHybrid, self).__init__()
+
+        input_dim = sum(s.shape[0] for s in observation_space) * 2 + action_dim
+        self.l1 = nn.Linear(input_dim, 256)
+        self.l2 = nn.Linear(256, 256)
+        self.l3 = nn.Linear(256, action_dim)
+
+        self.max_action = max_action
+
+    def forward(self, state):
+        # state = torch.cat(state, dim=1)
+        a = F.relu(self.l1(state))
+        a = F.relu(self.l2(a))
+        return self.max_action * torch.tanh(self.l3(a))
+
+
 class DelayedQuickActor(nn.Module):
     def __init__(self, observation_space, action_dim, max_action, threshold=0.15, reflex_force_scale=1.0):
         super(DelayedQuickActor, self).__init__()
@@ -156,6 +174,43 @@ class DelayedCritic(nn.Module):
         return q1
 
 
+class DelayedCriticFastHybrid(nn.Module):
+    def __init__(self, observation_space, action_dim):
+        super(DelayedCriticFastHybrid, self).__init__()
+
+        input_dim = sum(s.shape[0] for s in observation_space) * 2 + action_dim
+        # Q1 architecture
+        self.l1 = nn.Linear(input_dim + action_dim, 256)
+        self.l2 = nn.Linear(256, 256)
+        self.l3 = nn.Linear(256, 1)
+
+        # Q2 architecture
+        self.l4 = nn.Linear(input_dim + action_dim, 256)
+        self.l5 = nn.Linear(256, 256)
+        self.l6 = nn.Linear(256, 1)
+
+    def forward(self, state, action):
+        sa = torch.cat([state, action], 1)
+
+        q1 = F.relu(self.l1(sa))
+        q1 = F.relu(self.l2(q1))
+        q1 = self.l3(q1)
+
+        q2 = F.relu(self.l4(sa))
+        q2 = F.relu(self.l5(q2))
+        q2 = self.l6(q2)
+        return q1, q2
+
+    def Q1(self, state, action):
+        sa = torch.cat([state, action], 1)
+
+        q1 = F.relu(self.l1(sa))
+        q1 = F.relu(self.l2(q1))
+        q1 = self.l3(q1)
+        return q1
+
+
+
 class TD3(object):
     def __init__(
             self,
@@ -172,6 +227,7 @@ class TD3(object):
             reflex=False,
             threshold=0.15,
             reflex_force_scale=1.0,
+            fast_hybrid=False
     ):
 
         self.delayed_env = delayed_env
@@ -181,8 +237,12 @@ class TD3(object):
             self.actor = DelayedQuickActor(observation_space, action_dim, max_action, threshold, reflex_force_scale).to(device)
             self.critic = DelayedCritic(observation_space, action_dim).to(device)
         elif self.delayed_env:
-            self.actor = DelayedActor(observation_space, action_dim, max_action).to(device)
-            self.critic = DelayedCritic(observation_space, action_dim).to(device)
+            if fast_hybrid:
+                self.actor = DelayedActorFastHybrid(observation_space, action_dim, max_action).to(device)
+                self.critic = DelayedCriticFastHybrid(observation_space, action_dim).to(device)
+            else:
+                self.actor = DelayedActor(observation_space, action_dim, max_action).to(device)
+                self.critic = DelayedCritic(observation_space, action_dim).to(device)
         else:
             self.actor = Actor(state_dim, action_dim, max_action).to(device)
             self.critic = Critic(state_dim, action_dim).to(device)
