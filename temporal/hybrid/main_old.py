@@ -25,7 +25,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
     max_force = g_ratio * 9.81
     eval_policy = eval_policy_increasing_force_hybrid
-    arguments = ["train_all", policy, env_name, seed, jit_duration, g_ratio, response_rate,
+    arguments = ["fast_dense_state_action", policy, env_name, seed, jit_duration, g_ratio, response_rate,
                  catastrophe_frequency, delayed_env]
 
     file_name = '_'.join([str(x) for x in arguments])
@@ -95,6 +95,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         kwargs["max_action"] = child_max_action
         kwargs["policy_noise"] = policy_noise * child_max_action
         kwargs["noise_clip"] = noise_clip * child_max_action
+        kwargs["fast_hybrid"] = True
         policy = TD3.TD3(**kwargs)
     elif policy == "OurDDPG":
         policy = OurDDPG.DDPG(**kwargs)
@@ -108,15 +109,21 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     parent_policy.load(f"../models_paper/{parent_policy_file}")
 
     if train_parent:
-        arguments = ["train_all", 'TD3', env_name, seed, jit_duration, g_ratio, response_rate,
+        arguments = ["fast_dense_state_action", 'TD3', env_name, seed, jit_duration, g_ratio, response_rate,
                      catastrophe_frequency, delayed_env, 'best']
         file_name = '_'.join([str(x) for x in arguments])
         policy.load(f"models/{file_name}")
     # for child network: add parent state value as the input
     if delayed_env:
-        replay_buffer = utils.ReplayBuffer(state_dim + action_dim, action_dim)
+        if train_parent:
+            replay_buffer = utils.ReplayBuffer(state_dim + action_dim, action_dim)
+        else:
+            replay_buffer = utils.ReplayBuffer((state_dim+action_dim)*2 + action_dim, action_dim)
     else:
-        replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
+        if train_parent:
+            replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
+        else:
+            replay_buffer = utils.ReplayBuffer(2*state_dim + action_dim, action_dim)
 
     # Evaluate untrained policy
     avg_reward, _, _, _ = eval_policy(policy, parent_policy, env_name, parent_max_action, eval_episodes=10, time_change_factor=time_change_factor,
@@ -172,14 +179,16 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
             prev_parent_state = state
         elif (episode_timesteps+1) % parent_steps == 0:
             parent_action = next_parent_action
-        if t < start_timesteps:
-            child_action = env.action_space.sample() * 2
-        else:
-            child_action = (
-                    policy.select_action(child_state)
-                    + np.random.normal(0, child_max_action * expl_noise, size=action_dim)
-            )
-        action = (parent_action + child_action).clip(-parent_max_action, parent_max_action)
+        action = parent_action
+        if child_episode_running and child_episode_counter < 2:
+            if t < start_timesteps:
+                child_action = env.action_space.sample() * 2
+            else:
+                child_action = (
+                        policy.select_action(np.concatenate((parent_state_value, parent_state_action, child_state)))
+                        + np.random.normal(0, child_max_action * expl_noise, size=action_dim)
+                )
+            action = (parent_action + child_action).clip(-parent_max_action, parent_max_action)
 
 
         jittering, disturb, counter, jittered_frames, jitter_force, max_force, next_state, reward, done = perform_action(
@@ -191,8 +200,29 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         if train_parent:
             replay_buffer.add(prev_parent_state, parent_action, next_state, reward, done_bool)
 
-        replay_buffer.add(child_state, child_action, next_state, reward, done_bool)
+        if child_episode_running:
+            child_episode_counter += 1
+            if not train_parent and child_episode_counter <= 2:
+                child_memories.append([np.concatenate((parent_state_value, parent_state_action, child_state)), child_action, np.concatenate((parent_state_value, parent_state_action, next_state)), float(child_episode_counter == 2 or done)])
+            if not train_parent and (child_episode_counter + 1) % 2 == 0:
+                child_episode_reward += (parent_policy.discount ** (int(((child_episode_counter + 1) / 2) - 1))) * reward
+            if child_episode_counter == 3 or done:
+                if not train_parent:
+                    target = child_episode_reward + (not done) * (parent_policy.discount ** (int(((child_episode_counter + 1) / 2)))) * get_Q(parent_policy, next_state)
+                    r = - abs(target - get_Q(parent_policy, parent_state_value)) - (1000 * done)
+                    episode_reward_td += r
+                    for memory in child_memories: # last action does not matter since it does not happen before the Td is evaluated
+                        replay_buffer.add(memory[0], memory[1], memory[2], r, memory[3])
+                child_episode_counter = 0
+                child_episode_running = False
+                child_episode_reward = 0
+                child_memories = []
 
+        td = get_TD(parent_policy, child_state, next_state, reward, done)  # fast critic
+        if td > 5 and not child_episode_running and not done:
+            child_episode_running = True
+            parent_state_value = child_state
+            parent_state_action = next_parent_action
         child_state = next_state
         state = next_state
         episode_reward += reward

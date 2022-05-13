@@ -13,6 +13,6 @@ response_rate=${3:-0.02}
 reward_factor=${4:-256}
 echo $seed $g_ratio $response_rate $reward_factor
 
-python main.py --seed $seed --g_ratio $g_ratio --jit_duration 0.02 --response_rate $response_rate --parent_response_rate 0.04 --save_model --delayed_env --reward_factor $reward_factor
+python main.py --seed $seed --g_ratio $g_ratio --jit_duration 0.02 --response_rate $response_rate --parent_response_rate 0.04 --save_model --delayed_env
 exit
 
