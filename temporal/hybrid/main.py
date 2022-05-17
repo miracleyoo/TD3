@@ -26,7 +26,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     max_force = g_ratio * 9.81
     eval_policy = eval_policy_increasing_force_hybrid
     arguments = ["train_all", policy, env_name, seed, jit_duration, g_ratio, response_rate,
-                 catastrophe_frequency, delayed_env]
+                 catastrophe_frequency, delayed_env, parent_response_rate]
 
     file_name = '_'.join([str(x) for x in arguments])
 
@@ -55,6 +55,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     print('timestep:', timestep)
     print('frameskip:', frame_skip)
     parent_steps = int(parent_response_rate/response_rate)  # Number children steps in on parent step
+    print('parent steps:', parent_steps)
 
     # The ratio of the default time consumption between two states returned and default version.
     # Used to reset the max episode number to guarantee the actual max time is always the same.
@@ -144,6 +145,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     jittering = False
     jitter_force = 0
     td = 0
+
     def stop_force():
         nonlocal jittered_frames
         nonlocal jittering
@@ -157,8 +159,6 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         counter = 0
         disturb = round(random.randint(50, 100) * 0.04 * (1 / catastrophe_frequency), 3)
 
-
-    print('parent steps', parent_steps)
     child_state = state
     child_episode_running = False
     child_episode_counter = 0
