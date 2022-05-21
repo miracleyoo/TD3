@@ -14,14 +14,21 @@ import neptune.new as neptune
 from common import make_env, create_folders, get_frame_skip_and_timestep, perform_action, random_jitter_force, random_disturb
 from evals import *
 
-default_timestep = 0.02 # for Inverted Pendulum-V2 todo: add for others
-default_frame_skip = 2
+
+
 
 # Main function of the policy. Model is trained and evaluated inside.
 def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timesteps=1e5,
           expl_noise=0.1, batch_size=256, discount=0.99, tau=0.005, policy_freq=2, policy_noise=2, noise_clip=0.5,
           save_model=False, load_model="", jit_duration=0.02, g_ratio=1, response_rate=0.04, std_eval=False,
           catastrophe_frequency=1, delayed_env=False, env_name='InvertedPendulum-v2', neurons=256):
+
+    if env_name == 'InvertedPendulum-v2':
+        default_timestep = 0.02
+        default_frame_skip = 2
+    elif env_name == 'Hopper-v2':
+        default_timestep = 0.002
+        default_frame_skip = 4
 
     max_force = g_ratio * 9.81
     eval_policy = eval_policy_std if std_eval else eval_policy_increasing_force
@@ -49,7 +56,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
     create_folders()
 
-    frame_skip, timestep, jit_frames = get_frame_skip_and_timestep(jit_duration, response_rate)
+    frame_skip, timestep, jit_frames = get_frame_skip_and_timestep(jit_duration, response_rate, default_timestep)
 
     print('timestep:', timestep)  # How long does it take before two frames
     # How many frames to skip before return the state, 1 by default
