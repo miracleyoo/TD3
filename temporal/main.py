@@ -29,6 +29,9 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     elif env_name == 'Hopper-v2':
         default_timestep = 0.002
         default_frame_skip = 4
+    elif env_name == 'Walker2d-v2':
+        default_timestep = 0.002
+        default_frame_skip = 4
 
     max_force = g_ratio * 9.81
     eval_policy = eval_policy_std if std_eval else eval_policy_increasing_force
