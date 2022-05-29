@@ -220,12 +220,12 @@ def create_folders():
         os.makedirs("./models")
 
 
-def get_frame_skip_and_timestep(jit_duration, response_rate, default_response_rate, reflex_response_rate=None):
+def get_frame_skip_and_timestep(jit_duration, response_rate, default_timestep, reflex_response_rate=None):
 
     if reflex_response_rate:
         timestep = jit_duration if jit_duration < reflex_response_rate else reflex_response_rate
     else:
-        timestep = jit_duration if jit_duration < response_rate else (response_rate if response_rate < default_response_rate else default_response_rate)
+        timestep = jit_duration if jit_duration < response_rate else (response_rate if response_rate < default_timestep else default_timestep)
 
     frame_skip = int(response_rate / timestep)
     if round((jit_duration / timestep), 3) % 1 == 0:

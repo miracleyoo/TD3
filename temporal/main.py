@@ -196,6 +196,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
                                      env_timestep=timestep, frame_skip=frame_skip, jit_frames=jit_frames,
                                      response_rate=response_rate, delayed_env=delayed_env)
             evaluations.append(avg_reward)
+            print(f" --------------- Evaluation reward {avg_reward * response_rate:.3f}")
             run['avg_reward'].log(avg_reward * response_rate)
             np.save(f"./results/{file_name}", evaluations)
 

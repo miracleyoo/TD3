@@ -10,7 +10,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 __all__ = ["eval_policy_std", "eval_policy_ori", "eval_policy_increasing_force", "eval_TD_error",
-           "eval_policy_increasing_force_hybrid", "eval_policy_increasing_force_hybrid_and_parent"]
+           "eval_policy_increasing_force_hybrid", "eval_policy_increasing_force_hybrid_and_parent", "eval_policy_increasing_force_hybrid_reflex"]
 
 
 # Standard evaluation function. A fixed evaluation routine will be executed to
@@ -245,6 +245,70 @@ def eval_policy_increasing_force_hybrid(policy, parent_policy, env_name, max_act
                 parent_action = next_parent_action
             # do not clip child action since it can go over, its max action should be twice.
             child_action = policy.select_action(child_state)
+            action = (parent_action + child_action).clip(-max_action, max_action)
+
+            jittering, disturb, counter, jittered_frames, jitter_force, force, next_state, reward, done = perform_action(
+                jittering, disturb, counter, response_rate, eval_env, reflex, action, None, frame_skip,
+                const_jitter_force, force, env_timestep, jit_frames, jittered_frames, const_disturb_five, jitter_force,
+                1, delayed_env)
+
+            avg_reward += reward
+            avg_angle += abs(next_state[1])
+            counter = round(counter, 3)
+
+            if counter == disturb:
+                jitter_force, force = const_jitter_force(force)
+                eval_env.model.opt.gravity[0] = jitter_force
+                jittering = True
+                jittered_frames = 0
+
+            child_state = next_state
+            state = next_state
+            t += 1
+
+    avg_reward /= eval_episodes
+    avg_angle /= eval_episodes
+    jerk /= t
+    actions /= eval_episodes
+
+    return avg_reward, avg_angle, jerk, actions
+
+
+def eval_policy_increasing_force_hybrid_reflex(policy, parent_policy, env_name, max_action, eval_episodes=10, time_change_factor=1,
+                                 env_timestep=0.02, frame_skip=1, jit_frames=0, response_rate=0.04, delayed_env=False, parent_steps=2):
+    eval_env = make_env(env_name, 100, time_change_factor, env_timestep, frame_skip, delayed_env)
+    if delayed_env:
+        eval_env.env.env._max_episode_steps = 100000
+    else:
+        eval_env.env._max_episode_steps = 100000
+    avg_reward = 0.
+    avg_angle = 0.
+    actions = 0
+
+    for _ in range(eval_episodes):
+        t = 0
+        eval_env.model.opt.gravity[0] = 0
+        counter = 0
+        disturb = 5
+        force = 0.25 * 9.81
+        jerk = 0
+        jittered_frames = 0
+        jittering = False
+        jitter_force = 0
+        reflex = False
+        state, done = eval_env.reset(), False
+        child_state = state
+        parent_action = eval_env.previous_action
+        next_parent_action = parent_action
+        while not done:
+            # parent action changed every parent-steps. Due to delayed environment, the actual change happens one
+            # step before the next action.
+            if t % parent_steps == 0:
+                next_parent_action = parent_policy.select_action(state).clip(-max_action, max_action)
+            elif (t+1) % parent_steps == 0:
+                parent_action = next_parent_action
+            # do not clip child action since it can go over, its max action should be twice.
+            child_action = policy(torch.Tensor(child_state).to(device)).cpu().detach().numpy()
             action = (parent_action + child_action).clip(-max_action, max_action)
 
             jittering, disturb, counter, jittered_frames, jitter_force, force, next_state, reward, done = perform_action(
