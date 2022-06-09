@@ -1,5 +1,7 @@
 import numpy as np
 import torch
+from torch import nn
+from torch.utils.data import Dataset
 
 
 class ReplayBuffer(object):
@@ -36,3 +38,33 @@ class ReplayBuffer(object):
             torch.FloatTensor(self.reward[ind]).to(self.device),
             torch.FloatTensor(self.not_done[ind]).to(self.device)
         )
+
+
+class Reflex(nn.Module):
+    def __init__(self):
+        super(Reflex, self).__init__()
+        self.linear_relu_stack = nn.Sequential(
+            nn.Linear(5, 6),
+            nn.ReLU(),
+            nn.Linear(6, 1),
+        )
+
+    def forward(self, x):
+        logits = self.linear_relu_stack(x)
+        return logits
+
+
+class StatesDataset(Dataset):
+    def __init__(self, dataframe):
+        self.df = dataframe
+
+    def __len__(self):
+        return len(self.df.index)
+
+    def __getitem__(self, idx):
+        state = self.df['states'].iloc[idx]
+        action = self.df['action'].iloc[idx][0]
+        failure = self.df['failure'].iloc[idx]
+        label = 0 if failure == 0.0 else action
+
+        return torch.Tensor(state), label
