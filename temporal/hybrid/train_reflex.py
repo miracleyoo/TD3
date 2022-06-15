@@ -167,7 +167,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, expl_noise=
 
     arguments = ['TD3', env_name, seed, jit_duration, float(g_ratio), response_rate, 1.0, delayed_env, 'best']
     policy_file = '_'.join([str(x) for x in arguments])
-    policy.load(f"../models_paper/{policy_file}")
+    policy.load(f"../models/{policy_file}")
     max_episode_timestep = env.env.env._max_episode_steps if delayed_env else env.env._max_episode_steps
 
     # df = pd.DataFrame(columns=['states', 'action', 'failure'])
