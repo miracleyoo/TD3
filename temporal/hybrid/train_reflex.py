@@ -170,15 +170,13 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, expl_noise=
     policy.load(f"../models/{policy_file}")
     max_episode_timestep = env.env.env._max_episode_steps if delayed_env else env.env._max_episode_steps
 
-    # df = pd.DataFrame(columns=['states', 'action', 'failure'])
-    # collect_frames(env, g_ratio, df, policy, max_action, response_rate, frame_skip, timestep, jit_frames,
-    #                max_episode_timestep, delayed_env, False)
-    # print("Non failure frames collected", len(df))
-    # collect_frames(env, g_ratio * 2, df, policy, max_action, response_rate, frame_skip, timestep, jit_frames,
-    #                max_episode_timestep, delayed_env, True) # double g_ratio to fail faster
-    # print("All frames collected")
-    # torch.save(df, 'temp_df')
-    df = torch.load('temp_df')
+    df = pd.DataFrame(columns=['states', 'action', 'failure'])
+    collect_frames(env, g_ratio, df, policy, max_action, response_rate, frame_skip, timestep, jit_frames,
+                   max_episode_timestep, delayed_env, False)
+    print("Non failure frames collected", len(df))
+    collect_frames(env, g_ratio * 2, df, policy, max_action, response_rate, frame_skip, timestep, jit_frames,
+                   max_episode_timestep, delayed_env, True) # double g_ratio to fail faster
+    print("All frames collected")
     training_data = utils.StatesDataset(df)
     train_dataloader = DataLoader(training_data, batch_size=64, shuffle=True, )
 
