@@ -37,10 +37,9 @@ def train_reflex(dataloader, model, loss_fn, optimizer, run):
         loss.backward()
         optimizer.step()
 
-        if batch % 100 == 0:
-            loss, current = loss.item(), batch * len(X)
-            print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
-            run['loss'].log(loss)
+    loss = loss.item()
+    print(f"loss: {loss:>7f}")
+    run['loss'].log(loss)
 
 
 def collect_frames(env, g_ratio, df, policy, max_action, response_rate, frame_skip, timestep, jit_frames,
@@ -48,18 +47,18 @@ def collect_frames(env, g_ratio, df, policy, max_action, response_rate, frame_sk
     env.model.opt.gravity[0] = 0
     counter = 0
     disturb = round(random.randint(50, 100) * 0.04, 3)
-    force = g_ratio * 9.81
+    max_force = g_ratio * 9.81 * (2 * collect_failure)
     jittered_frames = 0
     jittering = False
     jitter_force = 0
     state, done = env.reset(), False
     episode_timesteps = 0
-    while len(df[df.failure == collect_failure]) < 4000:
+    while len(df[df.failure == collect_failure]) < 2000:
         episode_timesteps += 1
         action = policy.select_action(state).clip(-max_action, max_action)
-        jittering, disturb, counter, jittered_frames, jitter_force, force, next_state, reward, done = perform_action(
+        jittering, disturb, counter, jittered_frames, jitter_force, next_state, reward, done = perform_action(
             jittering, disturb, counter, response_rate, env, False, action, 0, frame_skip,
-            random_jitter_force, force, timestep, jit_frames, jittered_frames, random_disturb, jitter_force, 1,
+            random_jitter_force, max_force, timestep, jit_frames, jittered_frames, random_disturb, jitter_force, 1,
             delayed_env)
         done_bool = float(done) if episode_timesteps < max_episode_timestep else 0.0
         if done:
@@ -70,7 +69,6 @@ def collect_frames(env, g_ratio, df, policy, max_action, response_rate, frame_sk
             env.model.opt.gravity[0] = 0
             counter = 0
             disturb = round(random.randint(50, 100) * 0.04, 3)
-            force = g_ratio * 9.81
             jittered_frames = 0
             jittering = False
             jitter_force = 0
@@ -84,7 +82,7 @@ def collect_frames(env, g_ratio, df, policy, max_action, response_rate, frame_sk
             state = next_state
             counter = round(counter, 3)
             if counter == disturb:
-                jitter_force, force = random_jitter_force(force)
+                jitter_force = random_jitter_force(max_force)
                 env.model.opt.gravity[0] = jitter_force
                 jittering = True
                 jittered_frames = 0
@@ -169,29 +167,53 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, expl_noise=
 
     arguments = ['TD3', env_name, seed, jit_duration, float(g_ratio), response_rate, 1.0, delayed_env, 'best']
     policy_file = '_'.join([str(x) for x in arguments])
-    policy.load(f"../models/{policy_file}")
+    policy.load(f"../models_paper/{policy_file}")
     max_episode_timestep = env.env.env._max_episode_steps if delayed_env else env.env._max_episode_steps
 
-    df = pd.DataFrame(columns=['states', 'action', 'failure'])
-    collect_frames(env, g_ratio, df, policy, max_action, response_rate, frame_skip, timestep, jit_frames,
-                   max_episode_timestep, delayed_env, False)
-    print("Non failure frames collected", len(df))
-    collect_frames(env, g_ratio * 2, df, policy, max_action, response_rate, frame_skip, timestep, jit_frames,
-                   max_episode_timestep, delayed_env, True) # double g_ratio to fail faster
-    print("All frames collected")
-
+    # df = pd.DataFrame(columns=['states', 'action', 'failure'])
+    # collect_frames(env, g_ratio, df, policy, max_action, response_rate, frame_skip, timestep, jit_frames,
+    #                max_episode_timestep, delayed_env, False)
+    # print("Non failure frames collected", len(df))
+    # collect_frames(env, g_ratio * 2, df, policy, max_action, response_rate, frame_skip, timestep, jit_frames,
+    #                max_episode_timestep, delayed_env, True) # double g_ratio to fail faster
+    # print("All frames collected")
+    # torch.save(df, 'temp_df')
+    df = torch.load('temp_df')
     training_data = utils.StatesDataset(df)
     train_dataloader = DataLoader(training_data, batch_size=64, shuffle=True, )
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = Reflex().to(device)
     loss_fn = nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.1)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.05)
 
     epochs = 100
     for t in range(epochs):
         train_reflex(train_dataloader, model, loss_fn, optimizer, run)
     print("Done!")
+
+    model.eval()
+    test_dataloader = DataLoader(utils.StatesDataset(df[df.failure == True]), batch_size=64, shuffle=True, )
+    total_loss = 0
+    for batch, (X, y) in enumerate(test_dataloader):
+        X, y = X.to(device), y.to(device)
+
+        pred = model(X)[:, 0]
+        loss = loss_fn(pred, y)
+        total_loss += loss
+    print(total_loss * 64 / 2000)
+
+    test_dataloader = DataLoader(utils.StatesDataset(df[df.failure == False]), batch_size=64, shuffle=True, )
+    total_loss = 0
+    for batch, (X, y) in enumerate(test_dataloader):
+        X, y = X.to(device), y.to(device)
+
+        pred = model(X)[:, 0]
+        loss = loss_fn(pred, y)
+        total_loss += loss
+    print(total_loss * 64 / 2000)
+
+
 
     if save_model:
         torch.save(model, f"./models/{file_name}")

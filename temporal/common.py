@@ -252,7 +252,7 @@ def env_step(env, reflex, action, reflex_frames, frame_skip):
 
 
 def random_jitter_force(force):
-    return np.random.random() * force * (2 * (np.random.random() > 0.5) - 1), force  # Jitter force strength w/ direction
+    return np.random.random() * force * (2 * (np.random.random() > 0.5) - 1)  # Jitter force strength w/ direction
 
 
 def const_jitter_force(force):
@@ -293,7 +293,7 @@ def perform_action(jittering, disturb, elapsed_time, response_rate, env, reflex,
             next_state, reward, done = env_step(env, reflex, action, reflex_frames, frame_skip)
             elapsed_time += response_rate
         elif round(disturb - elapsed_time, 3) < response_rate: # jitter force starts
-            jitter_force, max_force = get_jitter_force(max_force)
+            jitter_force = get_jitter_force(max_force)
             frames_simulated = 0
             force_frames_simulated = 0
             if reflex:
@@ -352,7 +352,7 @@ def perform_action(jittering, disturb, elapsed_time, response_rate, env, reflex,
         else:
             env.env._elapsed_steps += 1
 
-    return jittering, disturb, elapsed_time, jittered_frames, jitter_force, max_force, next_state, reward, done
+    return jittering, disturb, elapsed_time, jittered_frames, jitter_force, next_state, reward, done
 
 
 def get_TD(parent_policy, state, next_state, reward, done):

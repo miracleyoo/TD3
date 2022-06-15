@@ -18,20 +18,6 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 default_timestep = 0.02  # for Inverted Pendulum-V2 todo: add for others
 default_frame_skip = 2
 
-class Reflex(nn.Module):
-    def __init__(self):
-        super(Reflex, self).__init__()
-        self.linear_relu_stack = nn.Sequential(
-            nn.Linear(5, 6),
-            nn.ReLU(),
-            nn.Linear(6, 1),
-        )
-
-    def forward(self, x):
-        logits = self.linear_relu_stack(x)
-        return logits
-
-
 # Main function of the policy. Model is trained and evaluated inside.
 def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timesteps=1e5,
           expl_noise=0.1, batch_size=256, discount=0.99, tau=0.005, policy_freq=2, policy_noise=2, noise_clip=0.5,
@@ -58,6 +44,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         'response_rate': response_rate,
         'catastrophe_frequency': catastrophe_frequency,
         'delayed_env': delayed_env,
+        'type': 'reflex_hybrid'
     }
     run["parameters"] = parameters
     print("---------------------------------------")
@@ -111,7 +98,10 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     elif policy == "DDPG":
         policy = DDPG.DDPG(**kwargs)
 
-    policy = torch.load('reflex_model')
+    reflex_model_args = ["reflex_network", 'TD3', env_name, seed, jit_duration, g_ratio, parent_response_rate,
+                         catastrophe_frequency, delayed_env]
+    file_name = '_'.join([str(x) for x in reflex_model_args])
+    policy = torch.load(f"./models/{file_name}")
     # for child network: add parent state value as the input
     if delayed_env:
             replay_buffer = utils.ReplayBuffer(state_dim + action_dim, action_dim)
@@ -171,7 +161,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         action = (parent_action + child_action).clip(-parent_max_action, parent_max_action)
 
 
-        jittering, disturb, counter, jittered_frames, jitter_force, max_force, next_state, reward, done = perform_action(
+        jittering, disturb, counter, jittered_frames, jitter_force, next_state, reward, done = perform_action(
             jittering, disturb, counter, response_rate, env, False, action, 0, frame_skip, random_jitter_force,
             max_force, timestep, jit_frames, jittered_frames, random_disturb, jitter_force, catastrophe_frequency,
             delayed_env)
@@ -200,7 +190,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
             parent_action = env.previous_action
 
         if counter == disturb:  # Execute adding jitter horizontal force here
-            jitter_force, _ = random_jitter_force(max_force)  # Jitter force strength w/ direction
+            jitter_force = random_jitter_force(max_force)  # Jitter force strength w/ direction
             env.model.opt.gravity[0] = jitter_force
             jittering = True
             jittered_frames = 0

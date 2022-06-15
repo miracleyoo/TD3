@@ -117,7 +117,7 @@ def eval_policy_ori(policy, env_name, eval_episodes=10, time_change_factor=1, ji
                 reflex, action = policy.select_action(state)
             # Perform action
 
-            jittering, disturb, counter, jittered_frames, jitter_force, max_force, next_state, reward, done = perform_action(
+            jittering, disturb, counter, jittered_frames, jitter_force, next_state, reward, done = perform_action(
                 jittering, disturb, counter, response_rate, eval_env, reflex, action, reflex_frames, frame_skip, random_jitter_force,
                 max_force, env_timestep, jit_frames, jittered_frames, random_disturb, jitter_force, catastrophe_frequency, delayed_env)
 
@@ -181,7 +181,7 @@ def eval_policy_increasing_force(policy, env_name, max_action, eval_episodes=10,
             else:
                 actions += 1
             # Perform action
-            jittering, disturb, counter, jittered_frames, jitter_force, force, next_state, reward, done = perform_action(
+            jittering, disturb, counter, jittered_frames, jitter_force, next_state, reward, done = perform_action(
                 jittering, disturb, counter, response_rate, eval_env, reflex, action, reflex_frames, frame_skip,
                 const_jitter_force, force, env_timestep, jit_frames, jittered_frames, const_disturb_five, jitter_force, 1, delayed_env)
 
@@ -247,7 +247,7 @@ def eval_policy_increasing_force_hybrid(policy, parent_policy, env_name, max_act
             child_action = policy.select_action(child_state)
             action = (parent_action + child_action).clip(-max_action, max_action)
 
-            jittering, disturb, counter, jittered_frames, jitter_force, force, next_state, reward, done = perform_action(
+            jittering, disturb, counter, jittered_frames, jitter_force, next_state, reward, done = perform_action(
                 jittering, disturb, counter, response_rate, eval_env, reflex, action, None, frame_skip,
                 const_jitter_force, force, env_timestep, jit_frames, jittered_frames, const_disturb_five, jitter_force,
                 1, delayed_env)
@@ -311,7 +311,7 @@ def eval_policy_increasing_force_hybrid_reflex(policy, parent_policy, env_name, 
             child_action = policy(torch.Tensor(child_state).to(device)).cpu().detach().numpy()
             action = (parent_action + child_action).clip(-max_action, max_action)
 
-            jittering, disturb, counter, jittered_frames, jitter_force, force, next_state, reward, done = perform_action(
+            jittering, disturb, counter, jittered_frames, jitter_force, next_state, reward, done = perform_action(
                 jittering, disturb, counter, response_rate, eval_env, reflex, action, None, frame_skip,
                 const_jitter_force, force, env_timestep, jit_frames, jittered_frames, const_disturb_five, jitter_force,
                 1, delayed_env)
@@ -378,7 +378,7 @@ def eval_policy_increasing_force_hybrid_and_parent(policy, parent_policy, env_na
             child_action = policy.select_action(child_state)
             action = (parent_action + child_action).clip(-max_action, max_action)
 
-            jittering, disturb, counter, jittered_frames, jitter_force, force, next_state, reward, done = perform_action(
+            jittering, disturb, counter, jittered_frames, jitter_force, next_state, reward, done = perform_action(
                 jittering, disturb, counter, response_rate, eval_env, reflex, action, None, frame_skip,
                 const_jitter_force, force, env_timestep, jit_frames, jittered_frames, const_disturb_five, jitter_force,
                 1, delayed_env)
@@ -428,7 +428,7 @@ def eval_policy_increasing_force_hybrid_and_parent(policy, parent_policy, env_na
             child_action = policy.select_action(child_state)
             action = (parent_action + 0).clip(-max_action, max_action)
 
-            jittering, disturb, counter, jittered_frames, jitter_force, force, next_state, reward, done = perform_action(
+            jittering, disturb, counter, jittered_frames, jitter_force, next_state, reward, done = perform_action(
                 jittering, disturb, counter, response_rate, eval_env, reflex, action, None, frame_skip,
                 const_jitter_force, force, env_timestep, jit_frames, jittered_frames, const_disturb_five, jitter_force,
                 1, delayed_env)
@@ -493,7 +493,7 @@ def eval_TD_error(policy, env_name, max_action, eval_episodes=1, time_change_fac
                 action = next_action
 
             # Perform action
-            jittering, disturb, counter, jittered_frames, jitter_force, force, next_state, reward, done = perform_action(
+            jittering, disturb, counter, jittered_frames, jitter_force, next_state, reward, done = perform_action(
                 jittering, disturb, counter, response_rate, eval_env, reflex, action, 0, frame_skip,
                 const_jitter_force, force, env_timestep, jit_frames, jittered_frames, const_disturb_five, jitter_force,
                 1, delayed_env)
