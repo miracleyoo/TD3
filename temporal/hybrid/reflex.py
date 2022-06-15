@@ -26,8 +26,8 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
     max_force = g_ratio * 9.81
     eval_policy = eval_policy_increasing_force_hybrid_reflex
-    arguments = ["reflex", policy, env_name, seed, jit_duration, g_ratio, parent_response_rate,
-                 catastrophe_frequency, delayed_env]
+    arguments = ["reflex", policy, env_name, seed, jit_duration, g_ratio, response_rate, catastrophe_frequency,
+                 delayed_env, parent_response_rate]
 
     file_name = '_'.join([str(x) for x in arguments])
 
@@ -100,8 +100,8 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
     reflex_model_args = ["reflex_network", 'TD3', env_name, seed, jit_duration, g_ratio, parent_response_rate,
                          catastrophe_frequency, delayed_env]
-    file_name = '_'.join([str(x) for x in reflex_model_args])
-    policy = torch.load(f"./models/{file_name}")
+    reflex_file_name = '_'.join([str(x) for x in reflex_model_args])
+    policy = torch.load(f"./models/{reflex_file_name}")
     # for child network: add parent state value as the input
     if delayed_env:
             replay_buffer = utils.ReplayBuffer(state_dim + action_dim, action_dim)
