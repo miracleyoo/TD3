@@ -22,12 +22,12 @@ default_frame_skip = 2
 def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timesteps=1e5,
           expl_noise=0.1, batch_size=256, discount=0.99, tau=0.005, policy_freq=2, policy_noise=2, noise_clip=0.5,
           save_model=False, jit_duration=0.02, g_ratio=1, response_rate=0.04, catastrophe_frequency=1,
-          delayed_env=False, env_name='InvertedPendulum-v2', parent_response_rate=0.04):
+          delayed_env=False, env_name='InvertedPendulum-v2', parent_response_rate=0.04, zero_reflex=False):
 
     max_force = g_ratio * 9.81
     eval_policy = eval_policy_increasing_force_hybrid_reflex
     arguments = ["reflex", policy, env_name, seed, jit_duration, g_ratio, response_rate, catastrophe_frequency,
-                 delayed_env, parent_response_rate]
+                 delayed_env, parent_response_rate, zero_reflex]
 
     file_name = '_'.join([str(x) for x in arguments])
 
@@ -109,9 +109,10 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
             replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
 
     # Evaluate untrained policy
-    avg_reward, _, _, _ = eval_policy(policy, parent_policy, env_name, parent_max_action, eval_episodes=10, time_change_factor=time_change_factor,
-                             env_timestep=timestep, frame_skip=frame_skip, jit_frames=jit_frames,
-                             response_rate=response_rate, delayed_env=delayed_env, parent_steps=parent_steps)
+    avg_reward, _, _, _ = eval_policy(policy, parent_policy, env_name, parent_max_action, eval_episodes=10,
+                                      time_change_factor=time_change_factor, env_timestep=timestep,
+                                      frame_skip=frame_skip, jit_frames=jit_frames, response_rate=response_rate,
+                                      delayed_env=delayed_env, parent_steps=parent_steps, zero_reflex=zero_reflex)
 
     print('initial avg reward:', avg_reward * response_rate)
 
@@ -157,7 +158,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         elif (episode_timesteps+1) % parent_steps == 0:
             parent_action = next_parent_action
 
-        child_action = policy(torch.Tensor(child_state).to(device)).cpu().detach().numpy()
+        child_action = policy(torch.Tensor(child_state).to(device)).cpu().detach().numpy() * (1 - zero_reflex)
         action = (parent_action + child_action).clip(-parent_max_action, parent_max_action)
 
 
@@ -203,7 +204,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
                                                  env_timestep=timestep, frame_skip=frame_skip,
                                                  jit_frames=jit_frames,
                                                  response_rate=response_rate, delayed_env=delayed_env,
-                                                 parent_steps=parent_steps)
+                                                 parent_steps=parent_steps, zero_reflex=zero_reflex)
             evaluations.append(avg_reward)
             print(f" --------------- Evaluation reward {avg_reward * response_rate:.3f}")
             run['avg_reward'].log(avg_reward * response_rate)
@@ -249,6 +250,7 @@ if __name__ == "__main__":
     parser.add_argument("--parent_response_rate", default=0.04, type=float, help="Response time of the agent in seconds")
     parser.add_argument("--catastrophe_frequency", default=1.0, type=float, help="Modify how often to apply catastrophe")
     parser.add_argument("--delayed_env", action="store_true", help="Delay the environment by 1 step")
+    parser.add_argument("--zero_reflex", action="store_true", help="Zero reflex")
 
 
 
