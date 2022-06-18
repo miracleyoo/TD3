@@ -274,8 +274,9 @@ def eval_policy_increasing_force_hybrid(policy, parent_policy, env_name, max_act
     return avg_reward, avg_angle, jerk, actions
 
 
-def eval_policy_increasing_force_hybrid_reflex(policy, parent_policy, env_name, max_action, eval_episodes=10, time_change_factor=1,
-                                 env_timestep=0.02, frame_skip=1, jit_frames=0, response_rate=0.04, delayed_env=False, parent_steps=2):
+def eval_policy_increasing_force_hybrid_reflex(policy, parent_policy, env_name, max_action, eval_episodes=10,
+                                               time_change_factor=1, env_timestep=0.02, frame_skip=1, jit_frames=0,
+                                               response_rate=0.04, delayed_env=False, parent_steps=2, zero_reflex=False):
     eval_env = make_env(env_name, 100, time_change_factor, env_timestep, frame_skip, delayed_env)
     if delayed_env:
         eval_env.env.env._max_episode_steps = 100000
@@ -308,7 +309,7 @@ def eval_policy_increasing_force_hybrid_reflex(policy, parent_policy, env_name, 
             elif (t+1) % parent_steps == 0:
                 parent_action = next_parent_action
             # do not clip child action since it can go over, its max action should be twice.
-            child_action = policy(torch.Tensor(child_state).to(device)).cpu().detach().numpy()
+            child_action = policy(torch.Tensor(child_state).to(device)).cpu().detach().numpy() * (1-zero_reflex)
             action = (parent_action + child_action).clip(-max_action, max_action)
 
             jittering, disturb, counter, jittered_frames, jitter_force, next_state, reward, done = perform_action(
