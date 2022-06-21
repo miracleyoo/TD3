@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from torch import nn
 from torch.utils.data import Dataset
-
+import torch.nn.functional as F
 
 class ReplayBuffer(object):
     def __init__(self, state_dim, action_dim, max_size=int(1e6)):
@@ -52,6 +52,33 @@ class Reflex(nn.Module):
     def forward(self, x):
         logits = self.linear_relu_stack(x)
         return logits
+
+
+class HandCraftedReflex(nn.Module):
+    def __init__(self, observation_space, threshold=0.15, reflex_force_scale=1.0):
+        super(HandCraftedReflex, self).__init__()
+
+        input_dim = sum(s.shape[0] for s in observation_space)
+        self.reflex_detector = nn.Linear(input_dim, 2)
+        self.reflex_detector.weight.requires_grad = False
+        self.reflex_detector.bias.requires_grad = False
+        self.reflex_detector.weight.data = torch.zeros(self.reflex_detector.weight.shape)
+        self.reflex_detector.weight.data[0, 1] = 1
+        self.reflex_detector.weight.data[1, 1] = -1
+        self.reflex_detector.bias.data = torch.ones(self.reflex_detector.bias.data.shape) * threshold * -1
+
+        self.reflex = nn.Linear(2, 1)
+        self.reflex.weight.requires_grad = False
+        self.reflex.bias.requires_grad = False
+        self.reflex.weight.data[0, 0] = reflex_force_scale / (0.20 - threshold)
+        self.reflex.weight.data[0, 1] = -reflex_force_scale / (0.20 - threshold)
+        self.reflex.bias.data[0] = 0
+
+    def forward(self, state):
+        # state = torch.cat(state, dim=1)
+        a1 = F.relu(self.reflex_detector(state))
+        reflex = self.reflex(a1)
+        return reflex
 
 
 class StatesDataset(Dataset):
