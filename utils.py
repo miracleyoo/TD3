@@ -99,17 +99,11 @@ class StatesDataset(Dataset):
         return torch.Tensor(state), label
 
 
-def append_data_to_excel(excel_name, data):
-    with pd.ExcelWriter(excel_name) as writer:
-        columns = []
-        for k, v in data.items():
-            columns.append(k)
-        df = pd.DataFrame(data, index= None)
-        df_source = None
-        if os.path.exists(excel_name):
-            df_source = pd.DataFrame(pd.read_excel(excel_name))
-        if df_source is not None:
-            df_dest = df_source.append(df)
-        else:
-            df_dest = df
-        df_dest.to_excel(writer, index = False, columns=columns)
+def append_data_to_excel(excel_name, columns, data):
+    if not os.path.isfile(os.path.join(excel_name)):
+        with open(os.path.join(excel_name), 'w') as f:
+            f.write(','.join([str(x) for x in columns]) + '\n')
+
+    with open(os.path.join(excel_name), 'a') as f:
+        f.write(','.join([str(x) for x in data]) + '\n')
+

@@ -1,6 +1,5 @@
 from tqdm import tqdm
 import sys
-import pandas as pd
 import os
 import argparse
 sys.path.append('../')
@@ -12,7 +11,6 @@ import utils
 
 
 def eval(response_rate=0.02, g_force=5):
-    df = pd.DataFrame(columns=['seed', 'g_force', 'response_rate', 'parent_response_rate' 'reward'])
     default_timestep = 0.02
     default_frame_skip = 2
     jit_duration = 0.02
@@ -59,11 +57,10 @@ def eval(response_rate=0.02, g_force=5):
                                                                                           jit_frames, response_rate,
                                                                                           delayed_env, parent_steps,
                                                                                           False)
-
-
-        df.loc[len(df.index)] = [seed, g_force, response_rate, avg_reward]
-        utils.append_data_to_excel('eval_reflex_after_training.xlsx', df)
-        return
+        utils.append_data_to_excel('results/eval_reflex_after_training.csv',
+                                   ['seed', 'g_force', 'response_rate', 'parent_response_rate', 'reward'],
+                                   [seed, g_force, response_rate, parent_response_rate, avg_reward])
+    return
 
 
 if __name__ == "__main__":
