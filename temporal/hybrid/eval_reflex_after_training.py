@@ -10,7 +10,7 @@ import TD3
 import utils
 
 
-def eval(response_rate=0.02, g_force=5):
+def eval(response_rate=0.02, g_force=5, angle=0.15, reflex_force_scale=0.5):
     default_timestep = 0.02
     default_frame_skip = 2
     jit_duration = 0.02
@@ -49,7 +49,7 @@ def eval(response_rate=0.02, g_force=5):
             parent_policy.load(f"models_paper/{policy_file}")
         else:
             print(policy_file)
-        policy = utils.HandCraftedReflex(eval_env.observation_space, 0.15, 0.5).to('cuda')
+        policy = utils.HandCraftedReflex(eval_env.observation_space, angle, reflex_force_scale).to('cuda')
         avg_reward, avg_angle, jerk, actions = eval_policy_increasing_force_hybrid_reflex(policy, parent_policy,
                                                                                           env_name, max_action, 10,
                                                                                           time_change_factor,
@@ -58,8 +58,8 @@ def eval(response_rate=0.02, g_force=5):
                                                                                           delayed_env, parent_steps,
                                                                                           False)
         utils.append_data_to_excel('results/eval_reflex_after_training.csv',
-                                   ['seed', 'g_force', 'response_rate', 'parent_response_rate', 'reward'],
-                                   [seed, g_force, response_rate, parent_response_rate, avg_reward])
+                                   ['seed', 'g_force', 'response_rate', 'parent_response_rate', 'reward', 'angle', 'reflex_force_scale'],
+                                   [seed, g_force, response_rate, parent_response_rate, avg_reward, angle, reflex_force_scale])
     return
 
 
@@ -67,6 +67,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--g_force", default=0, type=float, help='Maximum horizontal force g ratio')
     parser.add_argument("--response_rate", default=0.02, type=float, help="Response time of the agent in seconds")
+    parser.add_argument("--angle", default=0.15, type=float, help="angle to trigger reflex")
+    parser.add_argument("--reflex_force_scale", default=0.5, type=float, help="scale force")
 
 
     args = parser.parse_args()
