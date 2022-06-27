@@ -3,6 +3,8 @@ import torch
 from torch import nn
 from torch.utils.data import Dataset
 import torch.nn.functional as F
+import pandas as pd
+import os
 
 class ReplayBuffer(object):
     def __init__(self, state_dim, action_dim, max_size=int(1e6)):
@@ -95,3 +97,19 @@ class StatesDataset(Dataset):
         label = 0 if failure == 0.0 else action
 
         return torch.Tensor(state), label
+
+
+def append_data_to_excel(excel_name, data):
+    with pd.ExcelWriter(excel_name) as writer:
+        columns = []
+        for k, v in data.items():
+            columns.append(k)
+        df = pd.DataFrame(data, index= None)
+        df_source = None
+        if os.path.exists(excel_name):
+            df_source = pd.DataFrame(pd.read_excel(excel_name))
+        if df_source is not None:
+            df_dest = df_source.append(df)
+        else:
+            df_dest = df
+        df_dest.to_excel(writer, index = False, columns=columns)
