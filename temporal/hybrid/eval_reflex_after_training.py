@@ -19,7 +19,7 @@ def eval(response_rate=0.02, g_force=5):
     parent_response_rate = 0.04
     for seed in tqdm(range(10)):
         states = []
-        arguments = ['reflex', 'TD3', env_name, seed, jit_duration, float(g_force), response_rate, 1.0, delayed_env,
+        arguments = ['reflex', 'TD3', env_name, seed, jit_duration, float(g_force), 0.02, 1.0, delayed_env,
                      parent_response_rate, True, 'best']
         file_name = '_'.join([str(x) for x in arguments])
         frame_skip, timestep, jit_frames = get_frame_skip_and_timestep(jit_duration, response_rate,
