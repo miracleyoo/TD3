@@ -145,9 +145,9 @@ def eval_policy_increasing_force(policy, env_name, max_action, eval_episodes=10,
                                  reflex_frames=None):
     eval_env = make_env(env_name, 100, time_change_factor, env_timestep, frame_skip, delayed_env)
     if delayed_env:
-        eval_env.env.env._max_episode_steps = 100000
+        eval_env.env.env._max_episode_steps = 1000000
     else:
-        eval_env.env._max_episode_steps = 100000
+        eval_env.env._max_episode_steps = 1000000
     avg_reward = 0.
     avg_angle = 0.
     actions = 0
@@ -211,9 +211,9 @@ def eval_policy_increasing_force_hybrid(policy, parent_policy, env_name, max_act
                                  env_timestep=0.02, frame_skip=1, jit_frames=0, response_rate=0.04, delayed_env=False, parent_steps=2):
     eval_env = make_env(env_name, 100, time_change_factor, env_timestep, frame_skip, delayed_env)
     if delayed_env:
-        eval_env.env.env._max_episode_steps = 100000
+        eval_env.env.env._max_episode_steps = 1000000
     else:
-        eval_env.env._max_episode_steps = 100000
+        eval_env.env._max_episode_steps = 1000000
     avg_reward = 0.
     avg_angle = 0.
     actions = 0
@@ -279,9 +279,9 @@ def eval_policy_increasing_force_hybrid_reflex(policy, parent_policy, env_name, 
                                                response_rate=0.04, delayed_env=False, parent_steps=2, zero_reflex=False):
     eval_env = make_env(env_name, 100, time_change_factor, env_timestep, frame_skip, delayed_env)
     if delayed_env:
-        eval_env.env.env._max_episode_steps = 100000
+        eval_env.env.env._max_episode_steps = 1000000
     else:
-        eval_env.env._max_episode_steps = 100000
+        eval_env.env._max_episode_steps = 1000000
     avg_reward = 0.
     avg_angle = 0.
     actions = 0
@@ -343,9 +343,9 @@ def eval_policy_increasing_force_hybrid_and_parent(policy, parent_policy, env_na
                                  env_timestep=0.02, frame_skip=1, jit_frames=0, response_rate=0.04, delayed_env=False, parent_steps=2):
     eval_env = make_env(env_name, 100, time_change_factor, env_timestep, frame_skip, delayed_env)
     if delayed_env:
-        eval_env.env.env._max_episode_steps = 100000
+        eval_env.env.env._max_episode_steps = 1000000
     else:
-        eval_env.env._max_episode_steps = 100000
+        eval_env.env._max_episode_steps = 1000000
     avg_reward = 0.
     avg_angle = 0.
     actions = 0
@@ -461,9 +461,9 @@ def eval_TD_error(policy, env_name, max_action, eval_episodes=1, time_change_fac
                   jit_frames=0, response_rate=0.04, delayed_env=False, critic_policy=None, parent_steps=1):
     eval_env = make_env(env_name, 100, time_change_factor, env_timestep, frame_skip, delayed_env)
     if delayed_env:
-        eval_env.env.env._max_episode_steps = 100000
+        eval_env.env.env._max_episode_steps = 1000000
     else:
-        eval_env.env._max_episode_steps = 100000
+        eval_env.env._max_episode_steps = 1000000
     avg_reward = 0.
     avg_angle = 0.
     actions = 0
