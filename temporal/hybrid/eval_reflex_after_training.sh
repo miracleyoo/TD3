@@ -12,6 +12,6 @@ g_ratio=${1:-4}
 response_rate=${2:-0.02}
 echo $g_ratio $response_rate
 
-python eval_reflex_after_training.py --g_ratio $g_ratio --response_rate $response_rate
+python eval_reflex_after_training.py --g_force $g_ratio --response_rate $response_rate
 exit
 
