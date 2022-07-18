@@ -68,7 +68,8 @@ def eval(response_rate=0.02, g_force=0, seed=0, population=20):
         'g_force': g_force,
         'response_rate': response_rate,
         'delayed_env': delayed_env,
-        'type': 'CEM Reflex Search'
+        'type': 'CEM Reflex Search',
+        'population': population
     }
     run["parameters"] = parameters
 
