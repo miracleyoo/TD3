@@ -83,6 +83,36 @@ class HandCraftedReflex(nn.Module):
         return reflex
 
 
+class CEMReflex(nn.Module):
+    def __init__(self, observation_space, thresholds=[0, 0, 0, 0], reflex_force_scales=[0, 0, 0, 0]):
+        super(CEMReflex, self).__init__()
+
+        input_dim = sum(s.shape[0] for s in observation_space)
+        self.reflex_detector = nn.Linear(input_dim, (input_dim - 1) * 2)
+        self.reflex_detector.weight.requires_grad = False
+        self.reflex_detector.bias.requires_grad = False
+        self.reflex_detector.weight.data = torch.zeros(self.reflex_detector.weight.shape)
+        for i, threshold in enumerate(thresholds):
+            self.reflex_detector.weight.data[i * 2, i] = 1
+            self.reflex_detector.weight.data[i * 2 + 1, i] = -1
+            self.reflex_detector.bias.data[i * 2] = threshold * -1
+            self.reflex_detector.bias.data[i * 2 + 1] = threshold * -1
+
+        self.reflex = nn.Linear((input_dim - 1) * 2, 1)
+        self.reflex.weight.requires_grad = False
+        self.reflex.bias.requires_grad = False
+        for i, reflex_force_scale in enumerate(reflex_force_scales):
+            self.reflex.weight.data[0, i*2] = reflex_force_scale
+            self.reflex.weight.data[0, i*2+1] = -reflex_force_scale
+            self.reflex.bias.data[0] = 0
+
+    def forward(self, state):
+        # state = torch.cat(state, dim=1)
+        a1 = F.relu(self.reflex_detector(state))
+        reflex = self.reflex(a1)
+        return reflex
+
+
 class StatesDataset(Dataset):
     def __init__(self, dataframe):
         self.df = dataframe
