@@ -120,7 +120,7 @@ if __name__ == "__main__":
     parser.add_argument("--g_ratio", default=0, type=float, help='Maximum horizontal force g ratio')
     parser.add_argument("--response_rate", default=0.02, type=float, help="Response time of the agent in seconds")
     parser.add_argument("--seed", default=0, type=int, help="Random seed")
-    parser.add_argument("--population", default=20, type=float, help="Population size")
+    parser.add_argument("--population", default=20, type=int, help="Population size")
 
     args = parser.parse_args()
     args = vars(args)
