@@ -15,7 +15,7 @@ def make_env(env_name, seed, time_change_factor, env_timestep, frameskip, delaye
     env = gym.make(env_name)
     if delayed_env:
         env = Float64ToFloat32(env)
-        env = RealTimeWrapper(env)
+        env = RealTimeWrapper(env, env_name)
         env.env.env._max_episode_steps = 1000 * time_change_factor
         env.env.env.frame_skip = int(frameskip)
         env.env.env.env.frame_skip = int(frameskip)
@@ -118,14 +118,19 @@ class JitterWrapper(gym.Wrapper):
 
 
 class RealTimeWrapper(gym.Wrapper):
-    # todo implement for other environments
-    def __init__(self, env):
+    def __init__(self, env, env_name):
         super().__init__(env)
         self.observation_space = gym.spaces.Tuple((env.observation_space, env.action_space))
         # self.initial_action = env.action_space.sample()
         assert isinstance(env.action_space, gym.spaces.Box)
         self.initial_action = env.action_space.high * 0
         self.previous_action = self.initial_action
+        if env_name == 'InvertedPendulum-v2':
+            self.jitter_step_end = self.jitter_step_end_InvertedPendulum
+            self.jitter_step_start = self.jitter_step_start_InvertedPendulum
+        elif env_name == 'Hopper-v2':
+            self.jitter_step_end = self.jitter_step_end_Hopper
+            self.jitter_step_start = self.jitter_step_start_Hopper
 
     def reset(self):
         self.previous_action = self.initial_action
@@ -136,7 +141,7 @@ class RealTimeWrapper(gym.Wrapper):
         self.previous_action = action
         return np.concatenate((observation, action), axis=0), reward, done, info
 
-    def jitter_step_end(self, a, force, frames1, frames2):
+    def jitter_step_end_InvertedPendulum(self, a, force, frames1, frames2):
         assert (
                 self.env.env._elapsed_steps is not None
         ), "Cannot call env.step() before calling reset()"
@@ -155,7 +160,7 @@ class RealTimeWrapper(gym.Wrapper):
             done = True
         return ob, reward, done, {}
 
-    def jitter_step_start(self, a, force, frames1, frames2, jit_frames):
+    def jitter_step_start_InvertedPendulum(self, a, force, frames1, frames2, jit_frames):
         assert (
                 self.env.env._elapsed_steps is not None
         ), "Cannot call env.step() before calling reset()"
@@ -179,6 +184,72 @@ class RealTimeWrapper(gym.Wrapper):
         if self.env.env._elapsed_steps >= self.env.env._max_episode_steps:
             done = True
         return ob, reward, done, {}
+
+    def jitter_step_end_Hopper(self, a, force, frames1, frames2):
+        assert (
+                self.env.env._elapsed_steps is not None
+        ), "Cannot call env.step() before calling reset()"
+        action = self.previous_action
+        posbefore = self.sim.data.qpos[0]
+        self.model.opt.gravity[0] = force
+        reward = 1.0
+        self.do_simulation(action, int(round(frames1)))
+        self.model.opt.gravity[0] = 0  # force # 0 here? frames1 are with force while frames2 are supposed not.
+        self.do_simulation(action, int(round(frames2)))
+
+        posafter, height, ang = self.sim.data.qpos[0:3]
+
+        ob = self.env.env.env._get_obs()
+
+        alive_bonus = 1.0
+        reward = (posafter - posbefore) / self.dt
+        reward += alive_bonus
+        reward -= 1e-3 * np.square(a).sum()
+        s = self.state_vector()
+        terminated = not (
+                np.isfinite(s).all()
+                and (np.abs(s[2:]) < 100).all()
+                and (height > 0.7)
+                and (abs(ang) < 0.2)
+        )
+        self.previous_action = a
+        ob = np.concatenate((ob, a), axis=0)
+        return ob, reward, terminated, {}
+
+    def jitter_step_start_Hopper(self, a, force, frames1, frames2, jit_frames):
+        assert (
+                self.env.env._elapsed_steps is not None
+        ), "Cannot call env.step() before calling reset()"
+
+        action = self.previous_action
+        posbefore = self.sim.data.qpos[0]
+        self.model.opt.gravity[0] = 0
+        self.do_simulation(action, int(frames1))
+        self.model.opt.gravity[0] = force
+        if frames2 < jit_frames:
+            self.do_simulation(action, int(round(frames2)))
+        else:
+            self.do_simulation(action, int(round(jit_frames)))
+            self.model.opt.gravity[0] = 0
+            self.do_simulation(action, int(round(frames2 - jit_frames)))
+
+        posafter, height, ang = self.sim.data.qpos[0:3]
+
+        ob = self.env.env.env._get_obs()
+        alive_bonus = 1.0
+        reward = (posafter - posbefore) / self.dt
+        reward += alive_bonus
+        reward -= 1e-3 * np.square(a).sum()
+        s = self.state_vector()
+        terminated = not (
+                np.isfinite(s).all()
+                and (np.abs(s[2:]) < 100).all()
+                and (height > 0.7)
+                and (abs(ang) < 0.2)
+        )
+        self.previous_action = a
+        ob = np.concatenate((ob, a), axis=0)
+        return ob, reward, terminated, {}
 
 
 class Float64ToFloat32(gym.ObservationWrapper):

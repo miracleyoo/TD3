@@ -84,10 +84,15 @@ class HandCraftedReflex(nn.Module):
 
 
 class CEMReflex(nn.Module):
-    def __init__(self, observation_space, thresholds=[0, 0, 0, 0], reflex_force_scales=[0, 0, 0, 0]):
+    def __init__(self, observation_space, thresholds=None, reflex_force_scales=None):
         super(CEMReflex, self).__init__()
 
         input_dim = sum(s.shape[0] for s in observation_space)
+        if thresholds is None:
+            thresholds = np.zeros((len(observation_space) - 1) * 2)
+        if reflex_force_scales is None:
+            reflex_force_scales = np.zeros((len(observation_space) - 1) * 2)
+
         self.reflex_detector = nn.Linear(input_dim, (input_dim - 1) * 2)
         self.reflex_detector.weight.requires_grad = False
         self.reflex_detector.bias.requires_grad = False

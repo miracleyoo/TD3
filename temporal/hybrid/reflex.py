@@ -16,14 +16,19 @@ sys.path.append('../')
 from common import make_env, create_folders, get_frame_skip_and_timestep, perform_action, random_jitter_force, random_disturb, get_TD, get_Q
 from evals import *
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-default_timestep = 0.02  # for Inverted Pendulum-V2 todo: add for others
-default_frame_skip = 2
+
+
+default_timesteps = {'InvertedPendulum-v2':0.02, 'Hopper-v2': 0.002}
+default_frame_skips = {'InvertedPendulum-v2':2, 'Hopper-v2': 4}
 
 # Main function of the policy. Model is trained and evaluated inside.
 def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timesteps=1e5,
           expl_noise=0.1, batch_size=256, discount=0.99, tau=0.005, policy_freq=2, policy_noise=2, noise_clip=0.5,
-          save_model=False, jit_duration=0.02, g_ratio=1, response_rate=0.04, catastrophe_frequency=1,
+          save_model=False, jit_duration=0.02, g_ratio=0, response_rate=0.04, catastrophe_frequency=1,
           delayed_env=False, env_name='InvertedPendulum-v2', parent_response_rate=0.04, zero_reflex=False):
+
+    default_timestep = default_timesteps[env_name]
+    default_frame_skip = default_frame_skips[env_name]
 
     max_force = g_ratio * 9.81
     eval_policy = eval_policy_increasing_force_hybrid_reflex
@@ -102,7 +107,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     reflex_model_args = ["reflex_network", 'TD3', env_name, seed, jit_duration, g_ratio, parent_response_rate,
                          catastrophe_frequency, delayed_env]
     reflex_file_name = '_'.join([str(x) for x in reflex_model_args])
-    policy = torch.load("reflex_model")
+    policy = utils.CEMReflex(env.observation_space).to(device)
     # for child network: add parent state value as the input
     if delayed_env:
             replay_buffer = utils.ReplayBuffer(state_dim + action_dim, action_dim)
