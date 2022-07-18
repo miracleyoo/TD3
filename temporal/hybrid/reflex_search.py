@@ -13,7 +13,7 @@ sys.path.append('../../')
 import TD3
 import utils
 
-def eval(response_rate=0.02, g_force=0, seed=0, population=20):
+def eval(response_rate=0.02, g_ratio=0, seed=0, population=20):
     default_timestep = 0.02
     default_frame_skip = 2
     jit_duration = 0.02
@@ -26,7 +26,7 @@ def eval(response_rate=0.02, g_force=0, seed=0, population=20):
     torch.manual_seed(seed)
     np.random.seed(seed)
 
-    arguments = ['reflex_fixed', 'TD3', env_name, seed, jit_duration, float(g_force), 0.02, 1.0, delayed_env,
+    arguments = ['reflex_fixed', 'TD3', env_name, seed, jit_duration, float(g_ratio), 0.02, 1.0, delayed_env,
                  parent_response_rate, True, 'best']
     file_name = '_'.join([str(x) for x in arguments])
     frame_skip, timestep, jit_frames = get_frame_skip_and_timestep(jit_duration, response_rate,
@@ -65,7 +65,7 @@ def eval(response_rate=0.02, g_force=0, seed=0, population=20):
     parameters = {
         'env_name': env_name,
         'jit_duration': jit_duration,
-        'g_force': g_force,
+        'g_force': g_ratio,
         'response_rate': response_rate,
         'delayed_env': delayed_env,
         'type': 'CEM Reflex Search',
@@ -108,7 +108,7 @@ def eval(response_rate=0.02, g_force=0, seed=0, population=20):
         threshold_stds = np.std(np.array(df['thresholds'][0:elite_population]))
         scale_stds = np.std(np.array(df['scales'][0:elite_population]))
 
-    arguments = ['reflex_search', env_name, seed, float(g_force), population]
+    arguments = ['reflex_search', env_name, seed, float(g_ratio), population]
     file_name = '_'.join([str(x) for x in arguments])
     np.save(f"./models/{file_name}_thresholds", df['thresholds'][0])
     np.save(f"./models/{file_name}_scales", df['scales'][0])
@@ -117,7 +117,7 @@ def eval(response_rate=0.02, g_force=0, seed=0, population=20):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--g_force", default=0, type=float, help='Maximum horizontal force g ratio')
+    parser.add_argument("--g_ratio", default=0, type=float, help='Maximum horizontal force g ratio')
     parser.add_argument("--response_rate", default=0.02, type=float, help="Response time of the agent in seconds")
     parser.add_argument("--seed", default=0, type=int, help="Random seed")
     parser.add_argument("--population", default=20, type=float, help="Population size")
