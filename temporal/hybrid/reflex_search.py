@@ -66,6 +66,7 @@ def eval(response_rate=0.02, g_ratio=0, seed=0, population=20):
         'env_name': env_name,
         'jit_duration': jit_duration,
         'g_force': g_ratio,
+        'seed': seed,
         'response_rate': response_rate,
         'delayed_env': delayed_env,
         'type': 'CEM Reflex Search',
@@ -98,12 +99,13 @@ def eval(response_rate=0.02, g_ratio=0, seed=0, population=20):
                 # reward_total += avg_reward
             # reward_total = reward_total/len(parent_policies)
             df.loc[len(df.index)] = [threshold, scale, avg_reward]
-        df = df.sort_values(by=['rewards'], ascending=False)
-        print("Max Reward for step ", step, ':', df['rewards'][0] * response_rate)
+        df = df.sort_values(by=['rewards'], ascending=False, ignore_index=True)
+        print("Max Reward for step ", step, ':', df['rewards'][0] * response_rate, "Elite avg reward:", np.mean(df['rewards'][0:elite_population]) * response_rate)
         run['max_reward'].log(df['rewards'][0] * response_rate)
         run['elite_avg_reward'].log(np.mean(df['rewards'][0:elite_population]) * response_rate)
         threshold_means = np.mean(df['thresholds'][0:elite_population])
         scale_means = np.mean(df['scales'][0:elite_population])
+        input(df)
 
         threshold_stds = np.std(np.array(df['thresholds'][0:elite_population]))
         scale_stds = np.std(np.array(df['scales'][0:elite_population]))
