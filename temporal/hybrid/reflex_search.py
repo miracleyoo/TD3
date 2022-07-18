@@ -20,7 +20,7 @@ def eval(response_rate=0.02, g_ratio=0, seed=0, population=20):
     env_name = 'InvertedPendulum-v2'
     delayed_env = True
     parent_response_rate = 0.04
-    elite_population = int(population/10)
+    elite_population = int(population/5)
 
     # Set seeds
     torch.manual_seed(seed)
