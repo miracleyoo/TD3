@@ -105,7 +105,6 @@ def eval(response_rate=0.02, g_ratio=0, seed=0, population=20):
         run['elite_avg_reward'].log(np.mean(df['rewards'][0:elite_population]) * response_rate)
         threshold_means = np.mean(df['thresholds'][0:elite_population])
         scale_means = np.mean(df['scales'][0:elite_population])
-        input(df)
 
         threshold_stds = np.std(np.array(df['thresholds'][0:elite_population]))
         scale_stds = np.std(np.array(df['scales'][0:elite_population]))
