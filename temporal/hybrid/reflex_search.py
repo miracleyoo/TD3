@@ -1,6 +1,8 @@
 from tqdm import tqdm
 import torch
 import sys
+import threading
+import time
 import os
 import argparse
 import neptune.new as neptune
@@ -12,6 +14,41 @@ from evals import *
 sys.path.append('../../')
 import TD3
 import utils
+
+
+class CEMThread(threading.Thread):
+    def __init__(self, threshold_means, threshold_stds, scale_means, scale_stds, observation_space, parent_policy, env_name, max_action, time_change_factor, timestep, frame_skip, jit_frames, response_rate, parent_steps, df):
+        threading.Thread.__init__(self)
+        self.threshold = np.random.normal(threshold_means, threshold_stds)
+        self.scale = np.random.normal(scale_means, scale_stds)
+        self.observation_space = observation_space
+        self.policy = utils.CEMReflex(self.observation_space, self.threshold, self.scale).to('cuda')
+        self.parent_policy = parent_policy
+        self.env_name = env_name
+        self.max_action = max_action
+        self.time_change_factor = time_change_factor
+        self.timestep = timestep
+        self.frame_skip = frame_skip
+        self.jit_frames = jit_frames
+        self.response_rate = response_rate
+        self.parent_steps = parent_steps
+        self.df = df
+
+    def run(self):
+        # reward_total = 0
+        # for parent_policy in parent_policies[]:
+        delayed_env = True
+        avg_reward, avg_angle, jerk, actions = eval_policy_increasing_force_hybrid_reflex(self.policy, self.parent_policy,
+                                                                                          self.env_name, self.max_action, 10,
+                                                                                          self.time_change_factor,
+                                                                                          self.timestep, self.frame_skip,
+                                                                                          self.jit_frames, self.response_rate,
+                                                                                          delayed_env, self.parent_steps,
+                                                                                          False)
+        # reward_total += avg_reward
+        # reward_total = reward_total/len(parent_policies)
+        self.df.loc[len(self.df.index)] = [self.threshold, self.scale, avg_reward]
+
 
 def eval(response_rate=0.02, g_ratio=0, seed=0, population=20):
     default_timestep = 0.02
@@ -83,22 +120,30 @@ def eval(response_rate=0.02, g_ratio=0, seed=0, population=20):
     for step in range(100):
 
         df = pd.DataFrame(columns=['thresholds', 'scales', 'rewards'])
-        for pop in tqdm(range(population)):
-            threshold = np.random.normal(threshold_means, threshold_stds)
-            scale = np.random.normal(scale_means, scale_stds)
-            policy = utils.CEMReflex(eval_env.observation_space, threshold, scale).to('cuda')
-            # reward_total = 0
-            # for parent_policy in parent_policies[]:
-            avg_reward, avg_angle, jerk, actions = eval_policy_increasing_force_hybrid_reflex(policy, parent_policy,
-                                                                                              env_name, max_action, 10,
-                                                                                              time_change_factor,
-                                                                                              timestep, frame_skip,
-                                                                                              jit_frames, response_rate,
-                                                                                              delayed_env, parent_steps,
-                                                                                              False)
-                # reward_total += avg_reward
-            # reward_total = reward_total/len(parent_policies)
-            df.loc[len(df.index)] = [threshold, scale, avg_reward]
+        threads = []
+        for pop in range(population):
+            # threshold = np.random.normal(threshold_means, threshold_stds)
+            # scale = np.random.normal(scale_means, scale_stds)
+            # policy = utils.CEMReflex(eval_env.observation_space, threshold, scale).to('cuda')
+            # # reward_total = 0
+            # # for parent_policy in parent_policies[]:
+            # avg_reward, avg_angle, jerk, actions = eval_policy_increasing_force_hybrid_reflex(policy, parent_policy,
+            #                                                                                   env_name, max_action, 10,
+            #                                                                                   time_change_factor,
+            #                                                                                   timestep, frame_skip,
+            #                                                                                   jit_frames, response_rate,
+            #                                                                                   delayed_env, parent_steps,
+            #                                                                                   False)
+            #     # reward_total += avg_reward
+            # # reward_total = reward_total/len(parent_policies)
+            # df.loc[len(df.index)] = [threshold, scale, avg_reward]
+            thread = CEMThread(threshold_means, threshold_stds, scale_means, scale_stds, eval_env.observation_space, parent_policy, env_name, max_action, time_change_factor, timestep, frame_skip, jit_frames, response_rate, parent_steps, df)
+            thread.start()
+            threads.append(thread)
+
+        for thread in tqdm(threads):
+            thread.join()
+
         df = df.sort_values(by=['rewards'], ascending=False, ignore_index=True)
         print("Max Reward for step ", step, ':', df['rewards'][0] * response_rate, "Elite avg reward:", np.mean(df['rewards'][0:elite_population]) * response_rate)
         run['max_reward'].log(df['rewards'][0] * response_rate)
