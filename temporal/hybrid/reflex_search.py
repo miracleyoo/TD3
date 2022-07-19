@@ -63,7 +63,7 @@ def eval(response_rate=0.02, g_ratio=0, seed=0, population=20):
     torch.manual_seed(seed)
     np.random.seed(seed)
 
-    arguments = ['reflex_fixed', 'TD3', env_name, seed, jit_duration, float(g_ratio), 0.02, 1.0, delayed_env,
+    arguments = ['reflex_fixed', 'TD3', env_name, seed, jit_duration, float(g_ratio), response_rate, 1.0, delayed_env,
                  parent_response_rate, True, 'best']
     file_name = '_'.join([str(x) for x in arguments])
     frame_skip, timestep, jit_frames = get_frame_skip_and_timestep(jit_duration, response_rate,

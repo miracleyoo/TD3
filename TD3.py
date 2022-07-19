@@ -33,9 +33,9 @@ class DelayedActor(nn.Module):
         super(DelayedActor, self).__init__()
 
         input_dim = sum(s.shape[0] for s in observation_space)
-        self.l1 = nn.Linear(input_dim, 256)
-        self.l2 = nn.Linear(256, 256)
-        self.l3 = nn.Linear(256, action_dim)
+        self.l1 = nn.Linear(input_dim, 400)
+        self.l2 = nn.Linear(400, 300)
+        self.l3 = nn.Linear(300, action_dim)
 
         self.max_action = max_action
 
@@ -144,14 +144,14 @@ class DelayedCritic(nn.Module):
 
         input_dim = sum(s.shape[0] for s in observation_space)
         # Q1 architecture
-        self.l1 = nn.Linear(input_dim + action_dim, 256)
-        self.l2 = nn.Linear(256, 256)
-        self.l3 = nn.Linear(256, 1)
+        self.l1 = nn.Linear(input_dim + action_dim, 400)
+        self.l2 = nn.Linear(400, 300)
+        self.l3 = nn.Linear(300, 1)
 
         # Q2 architecture
-        self.l4 = nn.Linear(input_dim + action_dim, 256)
-        self.l5 = nn.Linear(256, 256)
-        self.l6 = nn.Linear(256, 1)
+        self.l4 = nn.Linear(input_dim + action_dim, 400)
+        self.l5 = nn.Linear(400, 300)
+        self.l6 = nn.Linear(300, 1)
 
     def forward(self, state, action):
         sa = torch.cat([state, action], 1)
