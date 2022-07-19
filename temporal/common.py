@@ -134,6 +134,9 @@ class RealTimeWrapper(gym.Wrapper):
         elif env_name == 'Walker2d-v2':
             self.jitter_step_end = self.jitter_step_end_Walker
             self.jitter_step_start = self.jitter_step_start_Walker
+        elif env_name == 'InvertedDoublePendulum-v2':
+            self.jitter_step_end = self.jitter_step_end_InvertedDoublePendulum
+            self.jitter_step_start = self.jitter_step_start_InvertedDoublePendulum
 
     def reset(self):
         self.previous_action = self.initial_action
@@ -188,6 +191,58 @@ class RealTimeWrapper(gym.Wrapper):
             done = True
         return ob, reward, done, {}
 
+    def jitter_step_end_InvertedDoublePendulum(self, a, force, frames1, frames2):
+        assert (
+                self.env.env._elapsed_steps is not None
+        ), "Cannot call env.step() before calling reset()"
+        action = self.previous_action
+        self.model.opt.gravity[0] = force
+        self.do_simulation(action, int(round(frames1)))
+        self.model.opt.gravity[0] = 0  # force # 0 here? frames1 are with force while frames2 are supposed not.
+        self.do_simulation(action, int(round(frames2)))
+        ob = self.env.env.env._get_obs()
+        x, _, y = self.sim.data.site_xpos[0]
+        dist_penalty = 0.01 * x ** 2 + (y - 2) ** 2
+        v1, v2 = self.sim.data.qvel[1:3]
+        vel_penalty = 1e-3 * v1 ** 2 + 5e-3 * v2 ** 2
+        alive_bonus = 10
+        r = alive_bonus - dist_penalty - vel_penalty
+        terminated = bool(y <= 1)
+        self.previous_action = a
+        ob = np.concatenate((ob, a), axis=0)
+        if self.env.env._elapsed_steps >= self.env.env._max_episode_steps:
+            terminated = True
+        return ob, r, terminated, {}
+
+    def jitter_step_start_InvertedDoublePendulum(self, a, force, frames1, frames2, jit_frames):
+        assert (
+                self.env.env._elapsed_steps is not None
+        ), "Cannot call env.step() before calling reset()"
+
+        action = self.previous_action
+        self.model.opt.gravity[0] = 0
+        self.do_simulation(action, int(frames1))
+        self.model.opt.gravity[0] = force
+        if frames2 < jit_frames:
+            self.do_simulation(action, int(round(frames2)))
+        else:
+            self.do_simulation(action, int(round(jit_frames)))
+            self.model.opt.gravity[0] = 0
+            self.do_simulation(action, int(round(frames2 - jit_frames)))
+        ob = self.env.env.env._get_obs()
+        x, _, y = self.sim.data.site_xpos[0]
+        dist_penalty = 0.01 * x ** 2 + (y - 2) ** 2
+        v1, v2 = self.sim.data.qvel[1:3]
+        vel_penalty = 1e-3 * v1 ** 2 + 5e-3 * v2 ** 2
+        alive_bonus = 10
+        r = alive_bonus - dist_penalty - vel_penalty
+        terminated = bool(y <= 1)
+        self.previous_action = a
+        ob = np.concatenate((ob, a), axis=0)
+        if self.env.env._elapsed_steps >= self.env.env._max_episode_steps:
+            terminated = True
+        return ob, r, terminated, {}
+
     def jitter_step_end_Hopper(self, a, force, frames1, frames2):
         assert (
                 self.env.env._elapsed_steps is not None
@@ -217,6 +272,8 @@ class RealTimeWrapper(gym.Wrapper):
         )
         self.previous_action = a
         ob = np.concatenate((ob, a), axis=0)
+        if self.env.env._elapsed_steps >= self.env.env._max_episode_steps:
+            terminated = True
         return ob, reward, terminated, {}
 
     def jitter_step_start_Hopper(self, a, force, frames1, frames2, jit_frames):
@@ -252,6 +309,8 @@ class RealTimeWrapper(gym.Wrapper):
         )
         self.previous_action = a
         ob = np.concatenate((ob, a), axis=0)
+        if self.env.env._elapsed_steps >= self.env.env._max_episode_steps:
+            terminated = True
         return ob, reward, terminated, {}
 
     def jitter_step_end_Walker(self, a, force, frames1, frames2):
@@ -283,6 +342,8 @@ class RealTimeWrapper(gym.Wrapper):
         )
         self.previous_action = a
         ob = np.concatenate((ob, a), axis=0)
+        if self.env.env._elapsed_steps >= self.env.env._max_episode_steps:
+            terminated = True
         return ob, reward, terminated, {}
 
     def jitter_step_start_Walker(self, a, force, frames1, frames2, jit_frames):
@@ -318,6 +379,8 @@ class RealTimeWrapper(gym.Wrapper):
         )
         self.previous_action = a
         ob = np.concatenate((ob, a), axis=0)
+        if self.env.env._elapsed_steps >= self.env.env._max_episode_steps:
+            terminated = True
         return ob, reward, terminated, {}
 
 class Float64ToFloat32(gym.ObservationWrapper):
