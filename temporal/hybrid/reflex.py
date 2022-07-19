@@ -18,8 +18,8 @@ from evals import *
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-default_timesteps = {'InvertedPendulum-v2':0.02, 'Hopper-v2': 0.002}
-default_frame_skips = {'InvertedPendulum-v2':2, 'Hopper-v2': 4}
+default_timesteps = {'InvertedPendulum-v2':0.02, 'Hopper-v2': 0.002, 'Walker2d-v2': 0.002}
+default_frame_skips = {'InvertedPendulum-v2':2, 'Hopper-v2': 4, 'Walker2d-v2': 4}
 
 # Main function of the policy. Model is trained and evaluated inside.
 def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timesteps=1e5,
