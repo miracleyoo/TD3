@@ -110,6 +110,9 @@ def eval(env_name='InvertedPendulum-v2', response_rate=0.02, g_ratio=0, seed=0, 
     }
     run["parameters"] = parameters
 
+    arguments = ['reflex_search', env_name, seed, float(g_ratio), population]
+    file_name = '_'.join([str(x) for x in arguments])
+
     threshold_means = np.zeros((len(eval_env.observation_space) - 1) * 2)
     threshold_stds = np.ones((len(eval_env.observation_space) - 1) * 2) * 4
     scale_means = np.zeros((len(eval_env.observation_space) - 1) * 2)
@@ -139,9 +142,9 @@ def eval(env_name='InvertedPendulum-v2', response_rate=0.02, g_ratio=0, seed=0, 
 
         threshold_stds = np.std(np.array(df['thresholds'][0:elite_population]))
         scale_stds = np.std(np.array(df['scales'][0:elite_population]))
+        np.save(f"./models/{file_name}_thresholds_intermediate", df['thresholds'][0])
+        np.save(f"./models/{file_name}_scales_intermediate", df['scales'][0])
 
-    arguments = ['reflex_search', env_name, seed, float(g_ratio), population]
-    file_name = '_'.join([str(x) for x in arguments])
     np.save(f"./models/{file_name}_thresholds", df['thresholds'][0])
     np.save(f"./models/{file_name}_scales", df['scales'][0])
 
