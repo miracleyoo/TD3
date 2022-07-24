@@ -3,7 +3,7 @@
 #SBATCH --partition=gypsum-titanx-phd
 #SBATCH --gres=gpu:1
 #SBATCH --time=07-00:00:00
-#SBATCH --mem=1600000
+#SBATCH --mem=160000
 #SBATCH --output=outputs/output_%j.out
 #SBATCH --cpus-per-task=24
 
@@ -13,7 +13,7 @@ response_rate=${3:-0.02}
 population=${4:-20}
 parent_response_rate=${5:-0.04}
 jit_duration=${6:-0.02}
-env_name=${6:-InvertedPendulum-v2}
+env_name=${7:-InvertedPendulum-v2}
 
 echo $seed $g_ratio $response_rate $population $parent_response_rate $jit_duration $env_name
 
