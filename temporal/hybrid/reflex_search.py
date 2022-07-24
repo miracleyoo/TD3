@@ -15,6 +15,8 @@ sys.path.append('../../')
 import TD3
 import utils
 
+default_timesteps = {'InvertedPendulum-v2':0.02, 'Hopper-v2': 0.002, 'Walker2d-v2': 0.002, 'InvertedDoublePendulum-v2':0.01}
+default_frame_skips = {'InvertedPendulum-v2':2, 'Hopper-v2': 4, 'Walker2d-v2': 4, 'InvertedDoublePendulum-v2':5}
 
 class CEMThread(threading.Thread):
     def __init__(self, threshold_means, threshold_stds, scale_means, scale_stds, observation_space, parent_policy, env_name, max_action, time_change_factor, timestep, frame_skip, jit_frames, response_rate, parent_steps, df):
@@ -50,13 +52,10 @@ class CEMThread(threading.Thread):
         self.df.loc[len(self.df.index)] = [self.threshold, self.scale, avg_reward]
 
 
-def eval(response_rate=0.02, g_ratio=0, seed=0, population=20):
-    default_timestep = 0.02
-    default_frame_skip = 2
-    jit_duration = 0.02
-    env_name = 'InvertedPendulum-v2'
+def eval(env_name='InvertedPendulum-v2', response_rate=0.02, g_ratio=0, seed=0, population=20, jit_duration=0.02, parent_response_rate=0.04):
+    default_timestep = default_timesteps[env_name]
+    default_frame_skip = default_frame_skips[env_name]
     delayed_env = True
-    parent_response_rate = 0.04
     elite_population = int(population/5)
 
     # Set seeds
@@ -111,10 +110,10 @@ def eval(response_rate=0.02, g_ratio=0, seed=0, population=20):
     }
     run["parameters"] = parameters
 
-    threshold_means = [0, 0, 0, 0]
-    threshold_stds = [1, 0.2, 1, 1]
-    scale_means = [0, 0, 0, 0]
-    scale_stds = [1, 1, 1, 1]
+    threshold_means = np.zeros((len(eval_env.observation_space) - 1) * 2)
+    threshold_stds = np.ones((len(eval_env.observation_space) - 1) * 2) * 4
+    scale_means = np.zeros((len(eval_env.observation_space) - 1) * 2)
+    scale_stds = np.ones((len(eval_env.observation_space) - 1) * 2) * max_action
     run['max_reward'].log(0)
     run['elite_avg_reward'].log(0)
     for step in range(100):
@@ -122,27 +121,14 @@ def eval(response_rate=0.02, g_ratio=0, seed=0, population=20):
         df = pd.DataFrame(columns=['thresholds', 'scales', 'rewards'])
         threads = []
         for pop in range(population):
-            # threshold = np.random.normal(threshold_means, threshold_stds)
-            # scale = np.random.normal(scale_means, scale_stds)
-            # policy = utils.CEMReflex(eval_env.observation_space, threshold, scale).to('cuda')
-            # # reward_total = 0
-            # # for parent_policy in parent_policies[]:
-            # avg_reward, avg_angle, jerk, actions = eval_policy_increasing_force_hybrid_reflex(policy, parent_policy,
-            #                                                                                   env_name, max_action, 10,
-            #                                                                                   time_change_factor,
-            #                                                                                   timestep, frame_skip,
-            #                                                                                   jit_frames, response_rate,
-            #                                                                                   delayed_env, parent_steps,
-            #                                                                                   False)
-            #     # reward_total += avg_reward
-            # # reward_total = reward_total/len(parent_policies)
-            # df.loc[len(df.index)] = [threshold, scale, avg_reward]
             thread = CEMThread(threshold_means, threshold_stds, scale_means, scale_stds, eval_env.observation_space, parent_policy, env_name, max_action, time_change_factor, timestep, frame_skip, jit_frames, response_rate, parent_steps, df)
             thread.start()
             threads.append(thread)
 
         for thread in tqdm(threads):
             thread.join()
+
+
 
         df = df.sort_values(by=['rewards'], ascending=False, ignore_index=True)
         print("Max Reward for step ", step, ':', df['rewards'][0] * response_rate, "Elite avg reward:", np.mean(df['rewards'][0:elite_population]) * response_rate)
@@ -167,6 +153,10 @@ if __name__ == "__main__":
     parser.add_argument("--response_rate", default=0.02, type=float, help="Response time of the agent in seconds")
     parser.add_argument("--seed", default=0, type=int, help="Random seed")
     parser.add_argument("--population", default=20, type=int, help="Population size")
+    parser.add_argument("--env_name", default="InvertedPendulum-v2", help="Environment name")
+    parser.add_argument("--parent_response_rate", default=0.04, type=float, help="Response time of the agent in seconds")
+    parser.add_argument("--jit_duration", default=0.02, type=float, help="Duration in seconds for the horizontal force")
+
 
     args = parser.parse_args()
     args = vars(args)
