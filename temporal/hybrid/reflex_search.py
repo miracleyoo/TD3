@@ -46,7 +46,7 @@ class CEMThread(threading.Thread):
                                                                                           self.timestep, self.frame_skip,
                                                                                           self.jit_frames, self.response_rate,
                                                                                           delayed_env, self.parent_steps,
-                                                                                          False)
+                                                                                          False, fast_eval=True)
         # reward_total += avg_reward
         # reward_total = reward_total/len(parent_policies)
         self.df.loc[len(self.df.index)] = [self.threshold, self.scale, avg_reward]

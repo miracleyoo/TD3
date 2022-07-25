@@ -104,10 +104,11 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     elif policy == "DDPG":
         policy = DDPG.DDPG(**kwargs)
 
-    reflex_model_args = ["reflex_network", 'TD3', env_name, seed, jit_duration, g_ratio, parent_response_rate,
-                         catastrophe_frequency, delayed_env]
-    reflex_file_name = '_'.join([str(x) for x in reflex_model_args])
-    policy = utils.CEMReflex(env.observation_space).to(device)
+    arguments = ['reflex_search', env_name, seed, float(g_ratio), 20]
+    file_name = '_'.join([str(x) for x in arguments])
+    threshold = np.load(f"./models_paper/{file_name}_thresholds_intermediate.npy")
+    scale = np.load(f"./models_paper/{file_name}_scales_intermediate.npy")
+    policy = utils.CEMReflex(env.observation_space, threshold, scale).to('cuda')
     # for child network: add parent state value as the input
     if delayed_env:
             replay_buffer = utils.ReplayBuffer(state_dim + action_dim, action_dim)
