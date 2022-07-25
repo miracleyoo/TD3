@@ -105,9 +105,9 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         policy = DDPG.DDPG(**kwargs)
 
     arguments = ['reflex_search', env_name, seed, float(g_ratio), 20]
-    file_name = '_'.join([str(x) for x in arguments])
-    threshold = np.load(f"./models_paper/{file_name}_thresholds.npy")
-    scale = np.load(f"./models_paper/{file_name}_scales.npy")
+    reflex_file_name = '_'.join([str(x) for x in arguments])
+    threshold = np.load(f"./models_paper/{reflex_file_name}_thresholds.npy")
+    scale = np.load(f"./models_paper/{reflex_file_name}_scales.npy")
     policy = utils.CEMReflex(env.observation_space, threshold, scale).to('cuda')
     # for child network: add parent state value as the input
     if delayed_env:
