@@ -19,12 +19,13 @@ default_timesteps = {'InvertedPendulum-v2':0.02, 'Hopper-v2': 0.002, 'Walker2d-v
 default_frame_skips = {'InvertedPendulum-v2':2, 'Hopper-v2': 4, 'Walker2d-v2': 4, 'InvertedDoublePendulum-v2':5}
 
 class CEMThread(threading.Thread):
-    def __init__(self, threshold_means, threshold_stds, scale_means, scale_stds, observation_space, parent_policy, env_name, max_action, time_change_factor, timestep, frame_skip, jit_frames, response_rate, parent_steps, df):
+    def __init__(self, threshold_means, threshold_stds, scale_means, scale_stds, observation_space, parent_policy, env_name, max_action, time_change_factor, timestep, frame_skip, jit_frames, response_rate, parent_steps, df, action_space):
         threading.Thread.__init__(self)
         self.threshold = np.random.normal(threshold_means, threshold_stds)
         self.scale = np.random.normal(scale_means, scale_stds)
         self.observation_space = observation_space
-        self.policy = utils.CEMReflex(self.observation_space, self.threshold, self.scale).to('cuda')
+        self.action_space = action_space
+        self.policy = utils.CEMReflex(self.observation_space, self.action_space, self.threshold, self.scale).to('cuda')
         self.parent_policy = parent_policy
         self.env_name = env_name
         self.max_action = max_action
@@ -112,11 +113,11 @@ def eval(env_name='InvertedPendulum-v2', response_rate=0.02, g_ratio=0, seed=0, 
 
     arguments = ['reflex_search', env_name, seed, float(g_ratio), population]
     file_name = '_'.join([str(x) for x in arguments])
-
-    threshold_means = np.zeros((len(eval_env.observation_space) - 1) * 2)
-    threshold_stds = np.ones((len(eval_env.observation_space) - 1) * 2) * 4
-    scale_means = np.zeros((len(eval_env.observation_space) - 1) * 2)
-    scale_stds = np.ones((len(eval_env.observation_space) - 1) * 2) * max_action
+    num_actions = len(eval_env.action_space.high)
+    threshold_means = np.zeros(state_dim * num_actions)
+    threshold_stds = np.ones(state_dim * num_actions) * 4
+    scale_means = np.zeros(state_dim * num_actions)
+    scale_stds = np.ones(state_dim * num_actions) * max_action
     run['max_reward'].log(0)
     run['elite_avg_reward'].log(0)
     for step in range(100):
@@ -124,7 +125,7 @@ def eval(env_name='InvertedPendulum-v2', response_rate=0.02, g_ratio=0, seed=0, 
         df = pd.DataFrame(columns=['thresholds', 'scales', 'rewards'])
         threads = []
         for pop in range(population):
-            thread = CEMThread(threshold_means, threshold_stds, scale_means, scale_stds, eval_env.observation_space, parent_policy, env_name, max_action, time_change_factor, timestep, frame_skip, jit_frames, response_rate, parent_steps, df)
+            thread = CEMThread(threshold_means, threshold_stds, scale_means, scale_stds, eval_env.observation_space, parent_policy, env_name, max_action, time_change_factor, timestep, frame_skip, jit_frames, response_rate, parent_steps, df, eval_env.action_space.high)
             thread.start()
             threads.append(thread)
 

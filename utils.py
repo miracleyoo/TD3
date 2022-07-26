@@ -89,29 +89,31 @@ class CEMReflex(nn.Module):
 
         input_dim = sum(s.shape[0] for s in observation_space)
         num_action = len(action_space)
-        if thresholds is None:
-            thresholds = np.zeros((input_dim - 1) * num_action)
-        if reflex_force_scales is None:
-            reflex_force_scales = np.zeros((input_dim - 1) * num_action)
+        observation_dim = input_dim - num_action
 
-        self.reflex_detector = nn.Linear(input_dim, (input_dim - 1) * 2 * num_action)
+        if thresholds is None:
+            thresholds = np.zeros(observation_dim * num_action)
+        if reflex_force_scales is None:
+            reflex_force_scales = np.zeros(observation_dim * num_action)
+
+        self.reflex_detector = nn.Linear(input_dim, observation_dim * 2 * num_action)
         self.reflex_detector.weight.requires_grad = False
         self.reflex_detector.bias.requires_grad = False
         self.reflex_detector.weight.data = torch.zeros(self.reflex_detector.weight.shape)
         for action in range(num_action):
-            for i in range(input_dim - 1):
-                self.reflex_detector.weight.data[(action * (input_dim - 1) * 2) + i * 2, i] = 1
-                self.reflex_detector.weight.data[(action * (input_dim - 1) * 2) + i * 2 + 1, i] = -1
-                self.reflex_detector.bias.data[(action * (input_dim - 1) * 2) + i * 2] = thresholds[(action * (input_dim - 1)) + i] * -1
-                self.reflex_detector.bias.data[(action * (input_dim - 1) * 2) + i * 2 + 1] = thresholds[(action * (input_dim - 1)) + i] * -1
+            for i in range(observation_dim):
+                self.reflex_detector.weight.data[(action * observation_dim * 2) + i * 2, i] = 1
+                self.reflex_detector.weight.data[(action * observation_dim * 2) + i * 2 + 1, i] = -1
+                self.reflex_detector.bias.data[(action * observation_dim * 2) + i * 2] = thresholds[(action * observation_dim) + i] * -1
+                self.reflex_detector.bias.data[(action * observation_dim * 2) + i * 2 + 1] = thresholds[(action * observation_dim) + i] * -1
 
-        self.reflex = nn.Linear((input_dim - 1) * 2 * num_action, num_action)
+        self.reflex = nn.Linear(observation_dim * 2 * num_action, num_action)
         self.reflex.weight.requires_grad = False
         self.reflex.bias.requires_grad = False
         for action in range(num_action):
-            for i in range(input_dim - 1):
-                self.reflex.weight.data[action,  (action*(input_dim - 1) * 2) + (i * 2)] = reflex_force_scales[(action * (input_dim - 1)) + i]
-                self.reflex.weight.data[action, (action*(input_dim - 1) * 2) + (i * 2) + 1] = -reflex_force_scales[(action * (input_dim - 1)) + i]
+            for i in range(observation_dim):
+                self.reflex.weight.data[action,  (action*observation_dim * 2) + (i * 2)] = reflex_force_scales[(action * observation_dim) + i]
+                self.reflex.weight.data[action, (action*observation_dim * 2) + (i * 2) + 1] = -reflex_force_scales[(action * observation_dim) + i]
         self.reflex.bias.data = torch.zeros(self.reflex.bias.shape)
 
     def forward(self, state):

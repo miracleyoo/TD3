@@ -292,7 +292,7 @@ def eval_policy_increasing_force_hybrid_reflex(policy, parent_policy, env_name, 
         t = 0
         eval_env.model.opt.gravity[0] = 0
         counter = 0
-        disturb = 5
+        disturb = get_next_disturb(1)
         force = 0.25 * 9.81
         jerk = 0
         jittered_frames = 0
@@ -314,7 +314,7 @@ def eval_policy_increasing_force_hybrid_reflex(policy, parent_policy, env_name, 
             child_action = policy(torch.Tensor(child_state).to(device)).cpu().detach().numpy() * (1-zero_reflex)
             action = (parent_action + child_action).clip(-max_action, max_action)
 
-            jittering, disturb, counter, jittered_frames, jitter_force, next_state, reward, done = perform_action(
+            jittering, disturb, counter, jittered_frames, jitter_force, next_state, reward, done, force = perform_action(
                 jittering, disturb, counter, response_rate, eval_env, reflex, action, None, frame_skip,
                 const_jitter_force, force, env_timestep, jit_frames, jittered_frames, get_next_disturb, jitter_force,
                 1, delayed_env)

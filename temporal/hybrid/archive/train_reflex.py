@@ -1,5 +1,5 @@
 import sys
-sys.path.append('../../')
+sys.path.append('../../../')
 import DDPG
 import OurDDPG
 import TD3
@@ -15,7 +15,7 @@ from utils import Reflex
 from torch.utils.data import DataLoader
 from torch import nn
 
-sys.path.append('../')
+sys.path.append('../../')
 from common import make_env, create_folders, get_frame_skip_and_timestep, perform_action, random_jitter_force, random_disturb, get_TD, get_Q
 from evals import *
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
