@@ -274,16 +274,12 @@ def eval_policy_increasing_force_hybrid(policy, parent_policy, env_name, max_act
     return avg_reward, avg_angle, jerk, actions
 
 
-def eval_policy_increasing_force_hybrid_reflex(policy, parent_policy, env_name, max_action, eval_episodes=10,
+def eval_policy_increasing_force_hybrid_reflex(policy, parent_policy, eval_env, max_action, eval_episodes=10,
                                                time_change_factor=1, env_timestep=0.02, frame_skip=1, jit_frames=0,
                                                response_rate=0.04, delayed_env=False, parent_steps=2, zero_reflex=False, fast_eval=False):
 
     get_next_disturb = const_disturb_half if fast_eval else const_disturb_five
-    eval_env = make_env(env_name, 100, time_change_factor, env_timestep, frame_skip, delayed_env)
-    if delayed_env:
-        eval_env.env.env._max_episode_steps = 1000000
-    else:
-        eval_env.env._max_episode_steps = 1000000
+
     avg_reward = 0.
     avg_angle = 0.
     actions = 0
@@ -336,9 +332,8 @@ def eval_policy_increasing_force_hybrid_reflex(policy, parent_policy, env_name, 
     avg_reward /= eval_episodes
     avg_angle /= eval_episodes
     jerk /= t
-    actions /= eval_episodes
 
-    return avg_reward, avg_angle, jerk, actions
+    return avg_reward, avg_angle, jerk, t
 
 
 def eval_policy_increasing_force_hybrid_and_parent(policy, parent_policy, env_name, max_action, eval_episodes=10, time_change_factor=1,

@@ -469,7 +469,7 @@ def const_disturb_five(catastrophe_frequency):
     return 4.98
 
 def const_disturb_half(catastrophe_frequency):
-    return 0.5
+    return 1
 
 
 def perform_action(jittering, disturb, elapsed_time, response_rate, env, reflex, action, reflex_frames, frame_skip, get_jitter_force, max_force, timestep, jit_frames, jittered_frames, get_next_disturb, jitter_force, catastrophe_frequency, delayed_env):

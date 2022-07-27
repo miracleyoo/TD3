@@ -71,6 +71,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     # Create environment
     env = make_env(env_name, seed, time_change_factor, timestep, frame_skip, delayed_env)
 
+    print("Action space:", len(env.action_space.high), ", Observation space:", sum(s.shape[0] for s in env.observation_space))
     # Set seeds
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -106,9 +107,12 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
     arguments = ['reflex_search', env_name, seed, float(g_ratio), 20]
     reflex_file_name = '_'.join([str(x) for x in arguments])
-    threshold = np.load(f"./models_paper/{reflex_file_name}_thresholds.npy")
-    scale = np.load(f"./models_paper/{reflex_file_name}_scales.npy")
-    policy = utils.CEMReflex(env.observation_space, threshold, scale).to('cuda')
+    if os.path.exists(f"./models_paper/{reflex_file_name}_thresholds.npy"):
+        threshold = np.load(f"./models_paper/{reflex_file_name}_thresholds.npy")
+        scale = np.load(f"./models_paper/{reflex_file_name}_scales.npy")
+        policy = utils.CEMReflex(env.observation_space, threshold, scale).to('cuda')
+    else:
+        policy = utils.CEMReflex(env.observation_space, env.action_space.high).to('cuda')
     # for child network: add parent state value as the input
     if delayed_env:
             replay_buffer = utils.ReplayBuffer(state_dim + action_dim, action_dim)
@@ -160,16 +164,20 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     prev_parent_state = state
     for t in range(int(max_timesteps)):
         if episode_timesteps % parent_steps == 0:
-            next_parent_action = (parent_policy.select_action(state) + np.random.normal(0, parent_max_action * expl_noise, size=action_dim)).clip(-parent_max_action, parent_max_action)
+            if t < start_timesteps:
+                next_parent_action = env.action_space.sample()
+            else:
+                next_parent_action = (parent_policy.select_action(state) + np.random.normal(0, parent_max_action * expl_noise, size=action_dim)).clip(-parent_max_action, parent_max_action)
             prev_parent_state = state
         elif (episode_timesteps+1) % parent_steps == 0:
             parent_action = next_parent_action
 
         child_action = policy(torch.Tensor(child_state).to(device)).cpu().detach().numpy() * (1 - zero_reflex)
+
         action = (parent_action + child_action).clip(-parent_max_action, parent_max_action)
+        print(child_action, action)
 
-
-        jittering, disturb, counter, jittered_frames, jitter_force, next_state, reward, done = perform_action(
+        jittering, disturb, counter, jittered_frames, jitter_force, next_state, reward, done, _ = perform_action(
             jittering, disturb, counter, response_rate, env, False, action, 0, frame_skip, random_jitter_force,
             max_force, timestep, jit_frames, jittered_frames, random_disturb, jitter_force, catastrophe_frequency,
             delayed_env)

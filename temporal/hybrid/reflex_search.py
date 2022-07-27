@@ -120,22 +120,45 @@ def eval(env_name='InvertedPendulum-v2', response_rate=0.02, g_ratio=0, seed=0, 
     scale_stds = np.ones(state_dim * num_actions) * max_action
     run['max_reward'].log(0)
     run['elite_avg_reward'].log(0)
+
+    eval_env = make_env(env_name, 100, time_change_factor, timestep, frame_skip, delayed_env)
+    if delayed_env:
+        eval_env.env.env._max_episode_steps = 1000000
+    else:
+        eval_env.env._max_episode_steps = 1000000
+
     for step in range(100):
 
-        df = pd.DataFrame(columns=['thresholds', 'scales', 'rewards'])
+        df = pd.DataFrame(columns=['thresholds', 'scales', 'rewards', 'steps'])
         threads = []
-        for pop in range(population):
-            thread = CEMThread(threshold_means, threshold_stds, scale_means, scale_stds, eval_env.observation_space, parent_policy, env_name, max_action, time_change_factor, timestep, frame_skip, jit_frames, response_rate, parent_steps, df, eval_env.action_space.high)
-            thread.start()
-            threads.append(thread)
-
-        for thread in tqdm(threads):
-            thread.join()
+        for pop in tqdm(range(population)):
+            threshold = np.random.normal(threshold_means, threshold_stds)
+            scale = np.random.normal(scale_means, scale_stds)
+            policy = utils.CEMReflex(eval_env.observation_space, eval_env.action_space.high, threshold, scale).to('cuda')
+            # reward_total = 0
+            # for parent_policy in parent_policies[]:
+            avg_reward, avg_angle, jerk, actions = eval_policy_increasing_force_hybrid_reflex(policy, parent_policy,
+                                                                                              eval_env, max_action, 1,
+                                                                                              time_change_factor,
+                                                                                              timestep, frame_skip,
+                                                                                              jit_frames, response_rate,
+                                                                                              delayed_env, parent_steps,
+                                                                                              False, True)
+                # reward_total += avg_reward
+            # reward_total = reward_total/len(parent_policies)
+            df.loc[len(df.index)] = [threshold, scale, avg_reward, actions]
+        # for pop in range(population):
+        #     thread = CEMThread(threshold_means, threshold_stds, scale_means, scale_stds, eval_env.observation_space, parent_policy, env_name, max_action, time_change_factor, timestep, frame_skip, jit_frames, response_rate, parent_steps, df, eval_env.action_space.high)
+        #     thread.start()
+        #     threads.append(thread)
+        #
+        # for thread in tqdm(threads):
+        #     thread.join()
 
 
 
         df = df.sort_values(by=['rewards'], ascending=False, ignore_index=True)
-        print("Max Reward for step ", step, ':', df['rewards'][0] * response_rate, "Elite avg reward:", np.mean(df['rewards'][0:elite_population]) * response_rate)
+        print("Max Reward for step ", step, ':', df['rewards'][0] * response_rate, df['steps'][0], "Elite avg reward:", np.mean(df['rewards'][0:elite_population]) * response_rate, np.mean(df['steps'][0:elite_population]))
         run['max_reward'].log(df['rewards'][0] * response_rate)
         run['elite_avg_reward'].log(np.mean(df['rewards'][0:elite_population]) * response_rate)
         threshold_means = np.mean(df['thresholds'][0:elite_population])
