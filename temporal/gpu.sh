@@ -9,10 +9,9 @@
 #SBATCH --cpus-per-task=8
 
 seed=${1:-0}
-g_ratio=${2:-4}
-response_rate=${3:-0.02}
-neurons=${4:-256}
-echo $seed $g_ratio $response_rate $neurons
+response_rate=${2-0.02}
+env_name=${3-InvertedPendulum-v2}
+echo $seed $g_ratio $response_rate $env_name
 
-python main.py --seed $seed --g_ratio $g_ratio --jit_duration 0.02 --response_rate $response_rate
+python normal.py --seed $seed --response_rate $response_rate --delayed_env --save_model -env_name $env_name
 exit

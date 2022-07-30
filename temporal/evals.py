@@ -5,6 +5,7 @@ import sys
 import torch
 from common import perform_action, random_disturb, random_jitter_force, const_jitter_force, const_disturb_five, get_TD, get_Q, const_disturb_half
 sys.path.append('../')
+import TD3
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -275,21 +276,22 @@ def eval_policy_increasing_force_hybrid(policy, parent_policy, env_name, max_act
 
 
 def eval_policy_increasing_force_hybrid_reflex(policy, parent_policy, eval_env, max_action, eval_episodes=10,
-                                               time_change_factor=1, env_timestep=0.02, frame_skip=1, jit_frames=0,
-                                               response_rate=0.04, delayed_env=False, parent_steps=2, zero_reflex=False, fast_eval=False):
+                                               env_timestep=0.02, frame_skip=1, jit_frames=0, response_rate=0.04,
+                                               start_force=0.25, delayed_env=False, parent_steps=2, zero_reflex=False,
+                                               fast_eval=False):
 
     get_next_disturb = const_disturb_half if fast_eval else const_disturb_five
 
     avg_reward = 0.
+    rewards = []
     avg_angle = 0.
-    actions = 0
-
+    end_force = 0
+    t = 0
     for _ in range(eval_episodes):
-        t = 0
         eval_env.model.opt.gravity[0] = 0
         counter = 0
         disturb = get_next_disturb(1)
-        force = 0.25 * 9.81
+        force = start_force * 9.81
         jerk = 0
         jittered_frames = 0
         jittering = False
@@ -299,6 +301,7 @@ def eval_policy_increasing_force_hybrid_reflex(policy, parent_policy, eval_env, 
         child_state = state
         parent_action = eval_env.previous_action
         next_parent_action = parent_action
+        total_reward = 0
         while not done:
             # parent action changed every parent-steps. Due to delayed environment, the actual change happens one
             # step before the next action.
@@ -307,7 +310,10 @@ def eval_policy_increasing_force_hybrid_reflex(policy, parent_policy, eval_env, 
             elif (t+1) % parent_steps == 0:
                 parent_action = next_parent_action
             # do not clip child action since it can go over, its max action should be twice.
-            child_action = policy(torch.Tensor(child_state).to(device)).cpu().detach().numpy() * (1-zero_reflex)
+            if isinstance(policy, TD3.TD3):
+                child_action = policy.select_action(child_state) * (1-zero_reflex)
+            else:
+                child_action = policy(torch.Tensor(child_state).to(device)).cpu().detach().numpy() * (1-zero_reflex)
             action = (parent_action + child_action).clip(-max_action, max_action)
 
             jittering, disturb, counter, jittered_frames, jitter_force, next_state, reward, done, force = perform_action(
@@ -315,7 +321,7 @@ def eval_policy_increasing_force_hybrid_reflex(policy, parent_policy, eval_env, 
                 const_jitter_force, force, env_timestep, jit_frames, jittered_frames, get_next_disturb, jitter_force,
                 1, delayed_env)
 
-            avg_reward += reward
+            total_reward += reward
             avg_angle += abs(next_state[1])
             counter = round(counter, 3)
 
@@ -328,12 +334,15 @@ def eval_policy_increasing_force_hybrid_reflex(policy, parent_policy, eval_env, 
             child_state = next_state
             state = next_state
             t += 1
+        rewards.append(total_reward)
+        avg_reward += total_reward
+        end_force += force
 
     avg_reward /= eval_episodes
     avg_angle /= eval_episodes
     jerk /= t
 
-    return avg_reward, avg_angle, jerk, t
+    return avg_reward, avg_angle, jerk, t, end_force / (9.81 * eval_episodes), rewards
 
 
 def eval_policy_increasing_force_hybrid_and_parent(policy, parent_policy, env_name, max_action, eval_episodes=10, time_change_factor=1,
