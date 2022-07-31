@@ -154,14 +154,13 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
             eval_env = make_env(env_name, seed, time_change_factor, timestep, frame_skip, delayed_env)
             rewards = 0
             for _ in range(10):
-                state, done = eval_env.reset(), False
-                episode_reward = 0
-                while not done:
-                    action = policy.select_action(np.array(state))
-                    next_state, reward, done, _ = eval_env.step(action)
-                    state = next_state
+                eval_state, eval_done = eval_env.reset(), False
+                while not eval_done:
+                    eval_action = policy.select_action(np.array(eval_state))
+                    eval_next_state, eval_reward, eval_done, _ = eval_env.step(eval_action)
+                    eval_state = eval_next_state
 
-                    rewards += reward
+                    rewards += eval_reward
             avg_reward = rewards / 10
             evaluations.append(avg_reward)
             print(f" --------------- Evaluation reward {avg_reward:.3f}")
