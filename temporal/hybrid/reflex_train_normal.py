@@ -140,7 +140,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         action = (parent_action + child_action).clip(-parent_max_action, parent_max_action)
         next_state, reward, done, _ = env.step(action)
         episode_reward += reward
-        reward = reward - abs(child_action/child_max_action)
+        reward = reward - abs(np.mean(child_action)/child_max_action)
         done_bool = float(done) if episode_timesteps < max_episode_timestep else 0
 
         replay_buffer.add(state, child_action, next_state, reward, done_bool)
