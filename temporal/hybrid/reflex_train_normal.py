@@ -32,7 +32,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     default_frame_skip = default_frame_skips[env_name]
     policy_name = policy
 
-    arguments = ["reflex_train_normal", policy_name, env_name, seed, response_rate, parent_response_rate]
+    arguments = ["reflex_train_normal_penalty", policy_name, env_name, seed, response_rate, parent_response_rate]
 
     file_name = '_'.join([str(x) for x in arguments])
 
@@ -139,12 +139,14 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
         action = (parent_action + child_action).clip(-parent_max_action, parent_max_action)
         next_state, reward, done, _ = env.step(action)
+        episode_reward += reward
+        reward = reward - abs(child_action/child_max_action)
         done_bool = float(done) if episode_timesteps < max_episode_timestep else 0
 
         replay_buffer.add(state, child_action, next_state, reward, done_bool)
 
         state = next_state
-        episode_reward += reward
+
         episode_timesteps += 1
 
         if done:
