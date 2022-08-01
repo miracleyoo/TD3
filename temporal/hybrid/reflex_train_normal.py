@@ -45,6 +45,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         'env_name': env_name,
         'seed': seed,
         'response_rate': response_rate,
+        'parent_response_rate': parent_response_rate,
         'type': 'Reflex train normal'
     }
     run["parameters"] = parameters
@@ -159,7 +160,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
         # Evaluate episode
         if (t + 1) % eval_freq == 0:
-            eval_env = make_env(env_name, seed, time_change_factor, timestep, frame_skip, delayed_env)
+            eval_env = make_env(env_name, 100, time_change_factor, timestep, frame_skip, delayed_env)
             rewards = 0
             for _ in range(10):
                 eval_state, eval_done = eval_env.reset(), False
@@ -182,7 +183,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
             run['avg_reward'].log(avg_reward)
             np.save(f"./results/{file_name}", evaluations)
 
-            if best_performance < avg_reward:
+            if best_performance <= avg_reward:
                 best_performance = avg_reward
                 run['best_reward'].log(best_performance)
                 policy.save(f"./models/{file_name}_best")
