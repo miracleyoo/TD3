@@ -74,9 +74,9 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     torch.manual_seed(seed)
     np.random.seed(seed)
     # Scale all timestep related parameters
-    max_timesteps = max_timesteps * time_change_factor
-    eval_freq = int(eval_freq * time_change_factor)
-    start_timesteps = start_timesteps * time_change_factor
+    max_timesteps = max_timesteps
+    eval_freq = int(eval_freq)
+    start_timesteps = start_timesteps
 
     state_dim = env.observation_space[0].shape[0] if delayed_env else env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
@@ -126,7 +126,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         eval_env.env._max_episode_steps = 1000000
     avg_reward, _, _, _, _, _ = eval_policy(policy, parent_policy, eval_env, parent_max_action, eval_episodes=10,
                                             env_timestep=timestep, frame_skip=frame_skip, jit_frames=jit_frames,
-                                            response_rate=response_rate, start_force=0, delayed_env=delayed_env,
+                                            response_rate=response_rate, start_force=0.25, delayed_env=delayed_env,
                                             parent_steps=parent_steps, zero_reflex=False, fast_eval=True)
 
     print('initial avg reward:', avg_reward * response_rate)
@@ -139,7 +139,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     episode_timesteps = 0
     episode_num = 0
     jittered_frames = 0
-    force = 0 * 9.81
+    force = 0.25 * 9.81
 
     counter = 0
     best_performance = 0
@@ -188,11 +188,12 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
             force, timestep, jit_frames, jittered_frames, const_disturb_half, jitter_force, catastrophe_frequency,
             delayed_env)
         done_bool = float(done) if episode_timesteps < max_episode_timestep else 0
+        episode_reward += reward
 
+        reward = reward - abs(np.mean(child_action)/child_max_action)
         replay_buffer.add(state, child_action, next_state, reward, done_bool)
 
         state = next_state
-        episode_reward += reward
         counter = round(counter, 3)
         episode_timesteps += 1
 
@@ -205,7 +206,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
             episode_reward = 0
             episode_timesteps = 0
             episode_num += 1
-            force = 4 * 9.81
+            force = 0.25 * 9.81
             stop_force()
             parent_action = env.previous_action
 
@@ -225,7 +226,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
             avg_reward, _, _, _, _, _ = eval_policy(policy, parent_policy, eval_env, parent_max_action,
                                                     eval_episodes=10,
                                                     env_timestep=timestep, frame_skip=frame_skip, jit_frames=jit_frames,
-                                                    response_rate=response_rate, start_force=0, delayed_env=delayed_env,
+                                                    response_rate=response_rate, start_force=0.25, delayed_env=delayed_env,
                                                     parent_steps=parent_steps, zero_reflex=False, fast_eval=True)
             evaluations.append(avg_reward)
             print(f" --------------- Evaluation reward {avg_reward * response_rate:.3f}")
