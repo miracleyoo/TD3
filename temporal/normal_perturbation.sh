@@ -10,7 +10,7 @@
 seed=${1:-0}
 response_rate=${2-0.02}
 env_name=${3-InvertedPendulum-v2}
-jit_duration=${3-0.02}
+jit_duration=${4-0.02}
 echo $seed $g_ratio $response_rate $env_name $jit_duration
 
 python normal_perturbation.py --seed $seed --response_rate $response_rate --delayed_env --env_name $env_name --jit_duration $jit_duration
