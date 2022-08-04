@@ -35,7 +35,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
     eval_policy = eval_policy_increasing_force_hybrid_reflex
 
-    arguments = ["reflex_train", policy_name, env_name, seed, jit_duration, response_rate, parent_response_rate]
+    arguments = ["reflex_train_no_penalty", policy_name, env_name, seed, jit_duration, response_rate, parent_response_rate]
 
     file_name = '_'.join([str(x) for x in arguments])
 
@@ -190,7 +190,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         done_bool = float(done) if episode_timesteps < max_episode_timestep else 0
         episode_reward += reward
 
-        reward = reward - abs(np.mean(child_action)/child_max_action)
+        # reward = reward - abs(np.mean(child_action)/child_max_action)
         replay_buffer.add(state, child_action, next_state, reward, done_bool)
 
         state = next_state
