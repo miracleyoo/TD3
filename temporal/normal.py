@@ -109,7 +109,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     episode_num = 0
     max_episode_timestep = env.env.env._max_episode_steps if delayed_env else env.env._max_episode_steps
 
-    best_performance = 0
+    best_performance = -100
 
     for t in range(int(max_timesteps)):
         episode_timesteps += 1
