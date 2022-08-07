@@ -64,9 +64,9 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     torch.manual_seed(seed)
     np.random.seed(seed)
 
-    max_timesteps = max_timesteps * time_change_factor
-    eval_freq = int(eval_freq * time_change_factor)
-    start_timesteps = start_timesteps * time_change_factor
+    max_timesteps = max_timesteps
+    eval_freq = int(eval_freq)
+    start_timesteps = start_timesteps
 
     state_dim = env.observation_space[0].shape[0] if delayed_env else env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
@@ -107,7 +107,6 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     episode_reward = 0
     episode_timesteps = 0
     episode_num = 0
-    jittered_frames = 0
     max_episode_timestep = env.env.env._max_episode_steps if delayed_env else env.env._max_episode_steps
 
     best_performance = 0
