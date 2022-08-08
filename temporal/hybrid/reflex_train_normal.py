@@ -25,14 +25,20 @@ default_frame_skips = {'InvertedPendulum-v2':2, 'Hopper-v2': 4, 'Walker2d-v2': 4
 # Main function of the policy. Model is trained and evaluated inside.
 def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timesteps=1e5,
           expl_noise=0.1, batch_size=256, discount=0.99, tau=0.005, policy_freq=2, policy_noise=2, noise_clip=0.5,
-          response_rate=0.04, env_name='InvertedPendulum-v2', parent_response_rate=0.04):
+          response_rate=0.04, env_name='InvertedPendulum-v2', parent_response_rate=0.04, penalty=False, with_parent_action=False):
 
     delayed_env = True
     default_timestep = default_timesteps[env_name]
     default_frame_skip = default_frame_skips[env_name]
     policy_name = policy
 
-    arguments = ["reflex_train_normal_penalty", policy_name, env_name, seed, response_rate, parent_response_rate]
+    augment_type = "reflex_train_normal"
+    if penalty:
+        augment_type += '_penalty'
+    if with_parent_action:
+        augment_type += '_with_parent_action'
+
+    arguments = [augment_type, policy_name, env_name, seed, response_rate, parent_response_rate]
 
     file_name = '_'.join([str(x) for x in arguments])
 
@@ -41,12 +47,12 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiI4YzE3ZTdmOS05MzJlLTQyYTAtODIwNC0zNjAyMzIwODEzYWQifQ==",
     )
     parameters = {
+        'type': augment_type,
         'policy': policy,
         'env_name': env_name,
         'seed': seed,
         'response_rate': response_rate,
         'parent_response_rate': parent_response_rate,
-        'type': 'Reflex train normal'
     }
     run["parameters"] = parameters
     print("---------------------------------------")
@@ -72,7 +78,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     np.random.seed(seed)
     # Scale all timestep related parameters
 
-    state_dim = env.observation_space[0].shape[0] if delayed_env else env.observation_space.shape[0]
+    state_dim = sum(s.shape[0] for s in env.observation_space)
     action_dim = env.action_space.shape[0]
     parent_max_action = float(env.action_space.high[0])
     child_max_action = 2 * parent_max_action
@@ -96,6 +102,8 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         kwargs["max_action"] = child_max_action
         kwargs["policy_noise"] = policy_noise * child_max_action
         kwargs["noise_clip"] = noise_clip * child_max_action
+        if with_parent_action:
+            kwargs["state_dim"] = state_dim + action_dim
         policy = TD3.TD3(**kwargs)
     elif policy == "OurDDPG":
         policy = OurDDPG.DDPG(**kwargs)
@@ -107,8 +115,10 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     parent_file_name = '_'.join([str(x) for x in arguments])
     parent_policy.load(f"./models_paper/{parent_file_name}")
 
-    # for child network: add parent state value as the input
-    replay_buffer = utils.ReplayBuffer(state_dim + action_dim, action_dim)
+    if with_parent_action:
+        replay_buffer = utils.ReplayBuffer(state_dim + action_dim, action_dim)
+    else:
+        replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
 
     # Evaluate untrained policy
     evaluations = []
@@ -123,31 +133,38 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
     print('parent steps', parent_steps)
     parent_action = env.previous_action
+    next_parent_action = parent_policy.select_action(state)
+    child_state = np.concatenate([state, parent_action], 0) if with_parent_action else state
+    print(child_state)
     for t in range(int(max_timesteps)):
-        if episode_timesteps % parent_steps == 0:
-            next_parent_action = parent_policy.select_action(state)
-        elif (episode_timesteps+1) % parent_steps == 0:
-            parent_action = next_parent_action
 
         if t < start_timesteps:
             child_action = env.action_space.sample() * 2
         else:
             child_action = (
-                    policy.select_action(state)
-                    + np.random.normal(0, child_max_action * expl_noise, size=action_dim)
+                    policy.select_action(child_state)
+                    + np.random.normal(0, parent_max_action * expl_noise, size=action_dim)
             )
 
         action = (parent_action + child_action).clip(-parent_max_action, parent_max_action)
         next_state, reward, done, _ = env.step(action)
         episode_reward += reward
-        reward = reward - abs(np.mean(child_action)/child_max_action)
+        if penalty:
+            reward = reward - abs(np.mean(child_action)/child_max_action)
         done_bool = float(done) if episode_timesteps < max_episode_timestep else 0
-
-        replay_buffer.add(state, child_action, next_state, reward, done_bool)
 
         state = next_state
 
         episode_timesteps += 1
+
+        if episode_timesteps % parent_steps == 0:
+            next_parent_action = parent_policy.select_action(state)
+        elif (episode_timesteps + 1) % parent_steps == 0:
+            parent_action = next_parent_action
+
+        next_child_state = np.concatenate([state, parent_action], 0) if with_parent_action else state
+        replay_buffer.add(child_state, child_action, next_child_state, reward, done_bool)
+        child_state = next_child_state
 
         if done:
             # +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True
@@ -159,6 +176,8 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
             episode_timesteps = 0
             episode_num += 1
             parent_action = env.previous_action
+            next_parent_action = parent_policy.select_action(state)
+            child_state = np.concatenate([state, parent_action], 0) if with_parent_action else state
 
         # Evaluate episode
         if (t + 1) % eval_freq == 0:
@@ -168,16 +187,21 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
                 eval_state, eval_done = eval_env.reset(), False
                 eval_parent_action = eval_env.previous_action
                 eval_episode_timesteps = 0
+                eval_next_parent_action = parent_policy.select_action(state)
+                eval_child_state = np.concatenate([eval_state, eval_parent_action], 0) if with_parent_action else eval_state
                 while not eval_done:
-                    if eval_episode_timesteps % parent_steps == 0:
-                        eval_next_parent_action = parent_policy.select_action(eval_state)
-                    elif (eval_episode_timesteps + 1) % parent_steps == 0:
-                        eval_parent_action = eval_next_parent_action
-                    eval_child_action = policy.select_action(eval_state)
+                    eval_child_action = policy.select_action(eval_child_state)
                     eval_action = (eval_parent_action + eval_child_action).clip(-parent_max_action, parent_max_action)
                     eval_next_state, eval_reward, eval_done, _ = eval_env.step(eval_action)
                     eval_state = eval_next_state
                     eval_episode_timesteps += 1
+                    if eval_episode_timesteps % parent_steps == 0:
+                        eval_next_parent_action = parent_policy.select_action(eval_state)
+                    elif (eval_episode_timesteps + 1) % parent_steps == 0:
+                        eval_parent_action = eval_next_parent_action
+
+                    eval_child_state = np.concatenate([eval_state, eval_parent_action], 0) if with_parent_action else eval_state
+
                     rewards += eval_reward
             avg_reward = rewards / 10
             evaluations.append(avg_reward)
@@ -215,6 +239,8 @@ if __name__ == "__main__":
     parser.add_argument("--policy_freq", default=2, type=int, help="Frequency of delayed policy updates")
     parser.add_argument("--response_rate", default=0.02, type=float, help="Response time of the agent in seconds")
     parser.add_argument("--parent_response_rate", default=0.04, type=float, help="Response time of the agent in seconds")
+    parser.add_argument("--penalty", action="store_true", help="add penalty to reward for action magnitude")
+    parser.add_argument("--with_parent_action", action="store_true", help="add parent action to state")
 
 
 

@@ -29,11 +29,10 @@ class Actor(nn.Module):
 
 
 class DelayedActor(nn.Module):
-    def __init__(self, observation_space, action_dim, max_action):
+    def __init__(self, state_dim, action_dim, max_action):
         super(DelayedActor, self).__init__()
 
-        input_dim = sum(s.shape[0] for s in observation_space)
-        self.l1 = nn.Linear(input_dim, 400)
+        self.l1 = nn.Linear(state_dim, 400)
         self.l2 = nn.Linear(400, 300)
         self.l3 = nn.Linear(300, action_dim)
 
@@ -139,17 +138,16 @@ class Critic(nn.Module):
 
 
 class DelayedCritic(nn.Module):
-    def __init__(self, observation_space, action_dim):
+    def __init__(self, state_dim, action_dim):
         super(DelayedCritic, self).__init__()
 
-        input_dim = sum(s.shape[0] for s in observation_space)
         # Q1 architecture
-        self.l1 = nn.Linear(input_dim + action_dim, 400)
+        self.l1 = nn.Linear(state_dim + action_dim, 400)
         self.l2 = nn.Linear(400, 300)
         self.l3 = nn.Linear(300, 1)
 
         # Q2 architecture
-        self.l4 = nn.Linear(input_dim + action_dim, 400)
+        self.l4 = nn.Linear(state_dim + action_dim, 400)
         self.l5 = nn.Linear(400, 300)
         self.l6 = nn.Linear(300, 1)
 
@@ -241,8 +239,8 @@ class TD3(object):
                 self.actor = DelayedActorFastHybrid(observation_space, action_dim, max_action).to(device)
                 self.critic = DelayedCriticFastHybrid(observation_space, action_dim).to(device)
             else:
-                self.actor = DelayedActor(observation_space, action_dim, max_action).to(device)
-                self.critic = DelayedCritic(observation_space, action_dim).to(device)
+                self.actor = DelayedActor(state_dim, action_dim, max_action).to(device)
+                self.critic = DelayedCritic(state_dim, action_dim).to(device)
         else:
             self.actor = Actor(state_dim, action_dim, max_action).to(device)
             self.critic = Critic(state_dim, action_dim).to(device)
