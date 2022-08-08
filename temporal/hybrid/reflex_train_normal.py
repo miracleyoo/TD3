@@ -187,7 +187,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
                 eval_state, eval_done = eval_env.reset(), False
                 eval_parent_action = eval_env.previous_action
                 eval_episode_timesteps = 0
-                eval_next_parent_action = parent_policy.select_action(state)
+                eval_next_parent_action = parent_policy.select_action(eval_state)
                 eval_child_state = np.concatenate([eval_state, eval_parent_action], 0) if with_parent_action else eval_state
                 while not eval_done:
                     eval_child_action = policy.select_action(eval_child_state)
