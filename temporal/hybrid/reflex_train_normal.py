@@ -99,9 +99,9 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         kwargs["noise_clip"] = noise_clip * parent_max_action
         kwargs["policy_freq"] = policy_freq
         parent_policy = TD3.TD3(**kwargs)
-        kwargs["max_action"] = child_max_action
-        kwargs["policy_noise"] = policy_noise * child_max_action
-        kwargs["noise_clip"] = noise_clip * child_max_action
+        # kwargs["max_action"] = child_max_action
+        # kwargs["policy_noise"] = policy_noise * child_max_action
+        # kwargs["noise_clip"] = noise_clip * child_max_action
         if with_parent_action:
             kwargs["state_dim"] = state_dim + action_dim
         policy = TD3.TD3(**kwargs)
@@ -139,7 +139,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     for t in range(int(max_timesteps)):
 
         if t < start_timesteps:
-            child_action = env.action_space.sample() * 2
+            child_action = env.action_space.sample()
         else:
             child_action = (
                     policy.select_action(child_state)
@@ -147,6 +147,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
             )
 
         action = (parent_action + child_action).clip(-parent_max_action, parent_max_action)
+
         next_state, reward, done, _ = env.step(action)
         episode_reward += reward
         if penalty:
