@@ -63,7 +63,7 @@ def eval(env_name='InvertedPendulum-v2', response_rate=0.02, g_ratio=0, seed=0, 
     torch.manual_seed(seed)
     np.random.seed(seed)
 
-    arguments = ['reflex_fixed', 'TD3', env_name, seed, jit_duration, float(g_ratio), response_rate, 1.0, delayed_env,
+    arguments = ['reflex_fixed', 'TD3', env_name, seed, jit_duration, float(g_ratio), 0.02, 1.0, delayed_env,
                  parent_response_rate, True, 'best']
     file_name = '_'.join([str(x) for x in arguments])
     frame_skip, timestep, jit_frames = get_frame_skip_and_timestep(jit_duration, response_rate,
@@ -111,7 +111,7 @@ def eval(env_name='InvertedPendulum-v2', response_rate=0.02, g_ratio=0, seed=0, 
     }
     run["parameters"] = parameters
 
-    arguments = ['reflex_search', env_name, seed, float(g_ratio), population]
+    arguments = ['reflex_search', env_name, seed, float(g_ratio), population, response_rate]
     file_name = '_'.join([str(x) for x in arguments])
     num_actions = len(eval_env.action_space.high)
     threshold_means = np.zeros(state_dim * num_actions)
@@ -120,6 +120,9 @@ def eval(env_name='InvertedPendulum-v2', response_rate=0.02, g_ratio=0, seed=0, 
     scale_stds = np.ones(state_dim * num_actions) * max_action
     run['max_reward'].log(0)
     run['elite_avg_reward'].log(0)
+    best_reward = 0
+    run['best_reward'].log(best_reward)
+
 
     eval_env = make_env(env_name, 100, time_change_factor, timestep, frame_skip, delayed_env)
     if delayed_env:
@@ -127,7 +130,7 @@ def eval(env_name='InvertedPendulum-v2', response_rate=0.02, g_ratio=0, seed=0, 
     else:
         eval_env.env._max_episode_steps = 1000000
 
-    for step in range(100):
+    for step in range(15):
 
         df = pd.DataFrame(columns=['thresholds', 'scales', 'rewards', 'steps'])
         threads = []
@@ -137,11 +140,10 @@ def eval(env_name='InvertedPendulum-v2', response_rate=0.02, g_ratio=0, seed=0, 
             policy = utils.CEMReflex(eval_env.observation_space, eval_env.action_space.high, threshold, scale).to('cuda')
             # reward_total = 0
             # for parent_policy in parent_policies[]:
-            avg_reward, avg_angle, jerk, actions = eval_policy_increasing_force_hybrid_reflex(policy, parent_policy,
-                                                                                              eval_env, max_action, 1,
-                                                                                              time_change_factor,
+            avg_reward, avg_angle, jerk, actions, _, _ = eval_policy_increasing_force_hybrid_reflex(policy, parent_policy,
+                                                                                              eval_env, max_action, 10,
                                                                                               timestep, frame_skip,
-                                                                                              jit_frames, response_rate,
+                                                                                              jit_frames, response_rate, 4,
                                                                                               delayed_env, parent_steps,
                                                                                               False, True)
                 # reward_total += avg_reward
@@ -158,14 +160,22 @@ def eval(env_name='InvertedPendulum-v2', response_rate=0.02, g_ratio=0, seed=0, 
 
 
         df = df.sort_values(by=['rewards'], ascending=False, ignore_index=True)
-        print("Max Reward for step ", step, ':', df['rewards'][0] * response_rate, df['steps'][0], "Elite avg reward:", np.mean(df['rewards'][0:elite_population]) * response_rate, np.mean(df['steps'][0:elite_population]))
+        print("Max Reward for step ", step, ':', df['rewards'][0] * response_rate, "Elite avg reward:", np.mean(df['rewards'][0:elite_population]) * response_rate)
+        max_reward = df['rewards'][0] * response_rate
         run['max_reward'].log(df['rewards'][0] * response_rate)
         run['elite_avg_reward'].log(np.mean(df['rewards'][0:elite_population]) * response_rate)
+
+
         threshold_means = np.mean(df['thresholds'][0:elite_population])
         scale_means = np.mean(df['scales'][0:elite_population])
 
         threshold_stds = np.std(np.array(df['thresholds'][0:elite_population]))
         scale_stds = np.std(np.array(df['scales'][0:elite_population]))
+        if max_reward > best_reward:
+            best_reward = max_reward
+            run['best_reward'].log(best_reward)
+            np.save(f"./models/{file_name}_thresholds_best", df['thresholds'][0])
+            np.save(f"./models/{file_name}_scales_best", df['scales'][0])
         np.save(f"./models/{file_name}_thresholds_intermediate", df['thresholds'][0])
         np.save(f"./models/{file_name}_scales_intermediate", df['scales'][0])
 
@@ -179,7 +189,7 @@ if __name__ == "__main__":
     parser.add_argument("--g_ratio", default=0, type=float, help='Maximum horizontal force g ratio')
     parser.add_argument("--response_rate", default=0.02, type=float, help="Response time of the agent in seconds")
     parser.add_argument("--seed", default=0, type=int, help="Random seed")
-    parser.add_argument("--population", default=20, type=int, help="Population size")
+    parser.add_argument("--population", default=100, type=int, help="Population size")
     parser.add_argument("--env_name", default="InvertedPendulum-v2", help="Environment name")
     parser.add_argument("--parent_response_rate", default=0.04, type=float, help="Response time of the agent in seconds")
     parser.add_argument("--jit_duration", default=0.02, type=float, help="Duration in seconds for the horizontal force")
