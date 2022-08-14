@@ -25,7 +25,7 @@ default_frame_skips = {'InvertedPendulum-v2':2, 'Hopper-v2': 4, 'Walker2d-v2': 4
 # Main function of the policy. Model is trained and evaluated inside.
 def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timesteps=1e5,
           expl_noise=0.1, batch_size=256, discount=0.99, tau=0.005, policy_freq=2, policy_noise=2, noise_clip=0.5,
-          response_rate=0.04, env_name='InvertedPendulum-v2', parent_response_rate=0.04, penalty=False, with_parent_action=False):
+          response_rate=0.04, env_name='InvertedPendulum-v2', parent_response_rate=0.04, penalty=False, with_parent_action=False, double_action=False):
 
     delayed_env = True
     default_timestep = default_timesteps[env_name]
@@ -37,6 +37,8 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         augment_type += '_penalty'
     if with_parent_action:
         augment_type += '_with_parent_action'
+    if double_action:
+        augment_type += '_double_action'
 
     arguments = [augment_type, policy_name, env_name, seed, response_rate, parent_response_rate]
 
@@ -99,9 +101,10 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         kwargs["noise_clip"] = noise_clip * parent_max_action
         kwargs["policy_freq"] = policy_freq
         parent_policy = TD3.TD3(**kwargs)
-        # kwargs["max_action"] = child_max_action
-        # kwargs["policy_noise"] = policy_noise * child_max_action
-        # kwargs["noise_clip"] = noise_clip * child_max_action
+        if double_action:
+            kwargs["max_action"] = child_max_action
+            kwargs["policy_noise"] = policy_noise * child_max_action
+            kwargs["noise_clip"] = noise_clip * child_max_action
         if with_parent_action:
             kwargs["state_dim"] = state_dim + action_dim
         policy = TD3.TD3(**kwargs)
@@ -242,6 +245,7 @@ if __name__ == "__main__":
     parser.add_argument("--parent_response_rate", default=0.04, type=float, help="Response time of the agent in seconds")
     parser.add_argument("--penalty", action="store_true", help="add penalty to reward for action magnitude")
     parser.add_argument("--with_parent_action", action="store_true", help="add parent action to state")
+    parser.add_argument("--double_action", action="store_true", help="max double action for policy")
 
 
 
