@@ -77,7 +77,6 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     print('time change factor for child', time_change_factor)
     # Create environment
     env = make_env(env_name, seed, time_change_factor, timestep, frame_skip, delayed_env, hybrid=oblivious_parent)
-
     # Set seeds
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -106,12 +105,15 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         kwargs["state_dim"] = state_dim - action_dim if oblivious_parent else state_dim
 
         parent_policy = TD3.TD3(**kwargs)
+
+        kwargs["state_dim"] = state_dim
         if double_action:
             kwargs["max_action"] = child_max_action
             kwargs["policy_noise"] = policy_noise * child_max_action
             kwargs["noise_clip"] = noise_clip * child_max_action
         if with_parent_action:
             kwargs["state_dim"] = state_dim + action_dim
+
         policy = TD3.TD3(**kwargs)
     elif policy == "OurDDPG":
         policy = OurDDPG.DDPG(**kwargs)
