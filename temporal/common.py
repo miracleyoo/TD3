@@ -11,11 +11,11 @@ __all__ = ["make_env", "create_folders", "get_frame_skip_and_timestep", "perform
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Make environment using its name
-def make_env(env_name, seed, time_change_factor, env_timestep, frameskip, delayed_env):
+def make_env(env_name, seed, time_change_factor, env_timestep, frameskip, delayed_env, hybrid=False):
     env = gym.make(env_name)
     if delayed_env:
         env = Float64ToFloat32(env)
-        env = RealTimeWrapper(env, env_name)
+        env = RealTimeWrapper(env, env_name, hybrid)
         env.env.env._max_episode_steps = 1000 * time_change_factor
         env.env.env.frame_skip = int(frameskip)
         env.env.env.env.frame_skip = int(frameskip)
@@ -118,9 +118,14 @@ class JitterWrapper(gym.Wrapper):
 
 
 class RealTimeWrapper(gym.Wrapper):
-    def __init__(self, env, env_name):
+    def __init__(self, env, env_name, hybrid):
         super().__init__(env)
-        self.observation_space = gym.spaces.Tuple((env.observation_space, env.action_space))
+        self.hybrid = hybrid
+        if hybrid:
+            self.observation_space = gym.spaces.Tuple((env.observation_space, env.action_space, env.action_space))
+        else:
+            self.observation_space = gym.spaces.Tuple((env.observation_space, env.action_space))
+
         # self.initial_action = env.action_space.sample()
         assert isinstance(env.action_space, gym.spaces.Box)
         self.initial_action = env.action_space.high * 0
@@ -140,12 +145,21 @@ class RealTimeWrapper(gym.Wrapper):
 
     def reset(self):
         self.previous_action = self.initial_action
-        return np.concatenate((super().reset(), self.previous_action), axis=0)
+        if not self.hybrid:
+            return np.concatenate((super().reset(), self.previous_action), axis=0)
+        else:
+            return np.concatenate((super().reset(), self.previous_action, np.zeros_like(self.previous_action)), axis=0)
 
-    def step(self, action):
+    def step(self, action, child_action=0):
         observation, reward, done, info = super().step(self.previous_action)
-        self.previous_action = action
-        return np.concatenate((observation, action), axis=0), reward, done, info
+        self.previous_action = (action + child_action).clip(-self.action_space.high[0], self.action_space.high[0])
+        if not self.hybrid:
+            self.previous_action = action
+            return np.concatenate((observation, action), axis=0), reward, done, info
+        else:
+            self.previous_action = (action + child_action).clip(-self.action_space.high[0], self.action_space.high[0])
+            return np.concatenate((observation, action, child_action), axis=0), reward, done, info
+
 
     def jitter_step_end_InvertedPendulum(self, a, force, frames1, frames2):
         assert (
