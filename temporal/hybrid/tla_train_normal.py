@@ -251,7 +251,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
                 best_performance = avg_reward
                 run['best_reward'].log(best_performance)
                 policy.save(f"./models/{file_name}_best")
-                parent_policy.save(f"./models/{file_name}_parent_final")
+                parent_policy.save(f"./models/{file_name}_parent_best")
 
         if t >= start_timesteps:
            policy.train(replay_buffer, batch_size)
