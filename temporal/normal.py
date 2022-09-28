@@ -68,7 +68,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     eval_freq = int(eval_freq)
     start_timesteps = start_timesteps
 
-    state_dim = env.observation_space[0].shape[0] if delayed_env else env.observation_space.shape[0]
+    state_dim = sum(s.shape[0] for s in env.observation_space) if delayed_env else env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
     max_action = float(env.action_space.high[0])
 
@@ -95,10 +95,7 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
     elif policy == "DDPG":
         policy = DDPG.DDPG(**kwargs)
 
-    if delayed_env:
-        replay_buffer = utils.ReplayBuffer(state_dim+action_dim, action_dim)
-    else:
-        replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
+    replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
 
 
     evaluations = []
