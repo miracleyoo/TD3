@@ -175,6 +175,10 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
 
         episode_timesteps += 1
 
+        # Set the next child state before the parent action so that the child is only aware of the action after
+        # it is actually picked/being performed in the environment
+        next_child_state = np.concatenate([state, parent_action], 0) if with_parent_action else state
+
         if episode_timesteps % parent_steps == 0:
             if oblivious_parent:
                 next_parent_action = parent_policy.select_action(state[:-action_dim])
@@ -183,7 +187,6 @@ def train(policy='TD3', seed=0, start_timesteps=25e3, eval_freq=5e3, max_timeste
         elif (episode_timesteps + 1) % parent_steps == 0:
             parent_action = next_parent_action
 
-        next_child_state = np.concatenate([state, parent_action], 0) if with_parent_action else state
         replay_buffer.add(child_state, child_action, next_child_state, reward, done_bool)
         child_state = next_child_state
 
